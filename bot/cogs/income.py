@@ -25,6 +25,7 @@ from ..models import ClearRecord
 from .common import (
     EMBED_COLOR,
     boss_autocomplete,
+    boss_image_url,
     character_autocomplete,
     difficulty_autocomplete,
     get_schedule,
@@ -68,7 +69,9 @@ class Income(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="수익", description="이번 주기에 번 결정석 수익을 정산합니다.")
-    @app_commands.describe(캐릭터="비우면 대표 캐릭터, 대표가 없으면 내 전 캐릭터", 주차="이번주 / 지난주")
+    @app_commands.describe(
+        캐릭터="비우면 대표 캐릭터, 대표가 없으면 내 전 캐릭터", 주차="이번주 / 지난주"
+    )
     @app_commands.autocomplete(캐릭터=character_autocomplete)
     @app_commands.choices(주차=WEEK_CHOICES)
     async def income(
@@ -254,7 +257,63 @@ class Income(commands.Cog):
             f"🗑️ **{name}** · {difficulty_tag(difficulty)} {boss_name} 기록을 지웠습니다."
         )
 
-    @app_commands.command(name="파티수익", description="파티 일정의 총 결정석값과 1인 분배액을 봅니다.")
+    @app_commands.command(name="결정석", description="보스 결정석 시세와 인원별 분배액을 봅니다.")
+    @app_commands.describe(보스="보스 이름", 난이도="난이도", 인원="나눌 인원 수 (1~6, 기본 1)")
+    @app_commands.autocomplete(보스=boss_autocomplete, 난이도=difficulty_autocomplete)
+    async def crystal(
+        self,
+        interaction: discord.Interaction,
+        보스: str,
+        난이도: str,
+        인원: app_commands.Range[int, 1, 6] = 1,
+    ) -> None:
+        validated = validate_boss_and_difficulty(보스, 난이도)
+        if isinstance(validated, str):
+            await interaction.response.send_message(f"❓ {validated}", ephemeral=True)
+            return
+        boss_name, difficulty = validated
+
+        result = party_income(boss_name, difficulty, 인원)
+        if result is None:
+            await interaction.response.send_message(
+                f"❓ **{difficulty_tag(difficulty)} {boss_name}** 은 시세 정보가 없습니다.",
+                ephemeral=True,
+            )
+            return
+
+        with open_session(interaction) as session:
+            image_url = boss_image_url(session, interaction.guild_id, boss_name)
+
+        embed = discord.Embed(
+            title=f"💎 {difficulty_tag(difficulty)} {boss_name}",
+            description="월간 보스" if is_monthly_boss(boss_name) else "주간 보스",
+            color=EMBED_COLOR,
+        )
+        if image_url:
+            embed.set_thumbnail(url=image_url)
+
+        embed.add_field(name="결정석 (총액)", value=format_meso(result.total_meso), inline=True)
+        embed.add_field(
+            name=f"{result.member_count}인 분배", value=format_meso(result.share_meso), inline=True
+        )
+        if result.total_sol_erda > 0:
+            embed.add_field(
+                name="솔 에르다 기운",
+                value=f"총 {format_sol_erda(result.total_sol_erda)}"
+                f" · 1인 {format_sol_erda(result.share_sol_erda)}",
+                inline=False,
+            )
+        if result.member_count != 인원:
+            embed.add_field(
+                name="참고", value="시즌 보스는 항상 1인 분배로 계산합니다.", inline=False
+            )
+
+        embed.set_footer(text=FOOTER)
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(
+        name="파티수익", description="파티 일정의 총 결정석값과 1인 분배액을 봅니다."
+    )
     @app_commands.describe(일정="확인할 파티 일정")
     @app_commands.autocomplete(일정=schedule_autocomplete)
     async def party_income_command(self, interaction: discord.Interaction, 일정: str) -> None:
