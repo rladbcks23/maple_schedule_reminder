@@ -41,6 +41,8 @@ known-third-party = ["alembic"]
 # 슬래시 커맨드 파라미터가 한글이라 함수 인자 이름이 길어지는 건 감수한다.
 "bot/cogs/*.py" = ["E501"]
 "alembic/versions/*.py" = ["E501"]
+# 보스 사진 URL은 해시가 길어 줄바꿈이 불가능하다.
+"bot/domain/boss_data.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
