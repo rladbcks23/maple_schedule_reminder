@@ -15,7 +15,7 @@ WEEKDAY_NAMES = ("월", "화", "수", "목", "금", "토", "일")
 
 REPEAT_WEEKLY = "weekly"
 REPEAT_MONTHLY = "monthly"
-# 고정 파티가 아닌 1회성 일정. 알림이 나간 뒤 비활성화된다.
+# 고정이 아닌 일정. 지정한 날에 한 번 알리고 비활성화된다.
 REPEAT_ONCE = "once"
 REPEAT_TYPES = (REPEAT_WEEKLY, REPEAT_MONTHLY, REPEAT_ONCE)
 

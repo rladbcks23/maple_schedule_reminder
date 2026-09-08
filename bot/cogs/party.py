@@ -75,7 +75,7 @@ def share_text(schedule: PartySchedule) -> str:
 
 def schedule_embed(schedule: PartySchedule, title: str) -> discord.Embed:
     upcoming = next_run(schedule)
-    반복 = "고정 파티" if schedule.is_recurring else "1회성 (알림 후 자동 삭제)"
+    반복 = "고정 파티" if schedule.is_recurring else "고정이 아닌 파티 (알림 후 자동 삭제)"
 
     embed = discord.Embed(
         title=title,
@@ -254,14 +254,14 @@ class Party(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="파티등록", description="보스 파티를 등록합니다. 고정을 끄면 1회성, 파티원을 비우면 목록에서 고릅니다.")
+    @app_commands.command(name="파티등록", description="보스 파티를 등록합니다. 고정을 끄면 한 번만, 파티원을 비우면 목록에서 고릅니다.")
     @app_commands.describe(
         보스="보스 이름",
         난이도="이 보스에 있는 난이도만 고를 수 있습니다",
         시각="24시간 표기 (예: 21:00)",
-        고정="고정 파티면 True, 한 번만 모이면 False (기본 True)",
+        고정="매주 반복하면 True, 이번 한 번만 모이면 False (기본 True)",
         요일="고정 주간 파티일 때 지정",
-        날짜="고정 월간 보스면 `15`, 1회성이면 `2026-09-10`",
+        날짜="고정 월간 보스면 `15`, 고정이 아니면 `2026-09-10`",
         파티원="캐릭터명을 콤마로 구분. 비우면 등록된 캐릭터 중에서 고릅니다",
     )
     @app_commands.autocomplete(보스=boss_autocomplete, 난이도=difficulty_autocomplete)
@@ -366,7 +366,7 @@ class Party(commands.Cog):
         """반복 종류와 시각 관련 컬럼을 정한다. 문제가 있으면 안내 문자열."""
         if not 고정:
             if not 날짜:
-                return "1회성 파티는 `날짜` 를 `2026-09-10` 형식으로 지정해주세요."
+                return "고정이 아닌 파티는 `날짜` 를 `2026-09-10` 형식으로 지정해주세요."
             parsed = parse_date(날짜)
             if parsed is None:
                 return "날짜는 `2026-09-10` 형식으로 적어주세요."

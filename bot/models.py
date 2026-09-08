@@ -66,7 +66,7 @@ class PartySchedule(Base):
     """보스 파티 일정.
 
     repeat_type이 weekly면 weekday(1=월 … 7=일)를, monthly면 month_day를,
-    once면 once_at(UTC)을 채운다. once는 고정 파티가 아닌 1회성 일정이라
+    once면 once_at(UTC)을 채운다. once는 고정이 아닌 일정이라
     알림이 나간 뒤 비활성화된다.
     """
 

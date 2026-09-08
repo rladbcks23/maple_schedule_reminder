@@ -207,7 +207,7 @@ def schedule_when(schedule: PartySchedule) -> str:
 
 
 def schedule_label(schedule: PartySchedule) -> str:
-    표시 = "고정" if schedule.is_recurring else "1회"
+    표시 = "고정" if schedule.is_recurring else "비고정"
     return (
         f"[{표시}] {schedule.difficulty.upper()} {schedule.boss_name} · {schedule_when(schedule)}"
     )

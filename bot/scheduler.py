@@ -44,7 +44,7 @@ KIND_ONTIME = "ontime"
 PRE_ALERT_WINDOW = timedelta(minutes=30)
 # 정시 알림은 예정 시각 ±2분 안에서만. 봇이 꺼져 있던 동안 밀린 회차는 되살리지 않는다.
 ONTIME_TOLERANCE = timedelta(minutes=2)
-# 이만큼 지난 1회성 일정은 알림 없이 목록에서만 치운다.
+# 이만큼 지난, 고정이 아닌 일정은 알림 없이 목록에서만 치운다.
 STALE_ONCE_GRACE = timedelta(hours=1)
 
 
@@ -90,7 +90,7 @@ class Scheduler(commands.Cog):
         try:
             self._expire_stale_once_schedules(now)
         except Exception:
-            log.exception("지난 1회성 일정 정리 실패")
+            log.exception("지나간 비고정 일정 정리 실패")
 
     def _collect_alerts(self, now: datetime):
         """보낼 알림 목록을 만든다. DB 접근은 이 안에서 끝낸다."""
@@ -128,7 +128,7 @@ class Scheduler(commands.Cog):
                                 occurrence_key(current),
                                 self._build_embed(schedule, current, KIND_ONTIME, now, image_url),
                                 self._mentions(schedule),
-                                # 1회성 파티는 정시 알림을 보내고 나면 없앤다.
+                                # 고정이 아닌 파티는 정시 알림을 보내고 나면 없앤다.
                                 not schedule.is_recurring,
                             )
                         )
@@ -139,7 +139,7 @@ class Scheduler(commands.Cog):
     ) -> datetime | None:
         """지금이 정시 알림을 보낼 순간이면 그 예정 시각, 아니면 None."""
         if schedule.repeat_type == REPEAT_ONCE:
-            # 1회성은 예정 시각이 하나뿐이라 그것과만 비교한다.
+            # 고정이 아니면 예정 시각이 하나뿐이라 그것과만 비교한다.
             return upcoming if abs(now - upcoming) <= ONTIME_TOLERANCE else None
 
         current = current_occurrence(schedule, now)
@@ -148,7 +148,7 @@ class Scheduler(commands.Cog):
         return None
 
     def _expire_stale_once_schedules(self, now: datetime) -> None:
-        """봇이 꺼져 있는 동안 지나가 버린 1회성 일정을 정리한다.
+        """봇이 꺼져 있는 동안 지나가 버린, 고정이 아닌 일정을 정리한다.
 
         되살려 알림을 보내지는 않고, 목록에서만 치운다.
         """
@@ -164,7 +164,7 @@ class Scheduler(commands.Cog):
             for schedule in stale:
                 if to_kst(schedule.once_at) < cutoff:
                     schedule.is_active = False
-                    log.info("지나간 1회성 일정 정리: #%s", schedule.id)
+                    log.info("지나간 비고정 일정 정리: #%s", schedule.id)
 
     def _deactivate(self, schedule_id: int) -> None:
         with session_scope(self.bot.session_factory) as session:
@@ -222,7 +222,7 @@ class Scheduler(commands.Cog):
             inline=True,
         )
         embed.add_field(
-            name="반복", value="고정 파티" if schedule.is_recurring else "1회성", inline=True
+            name="반복", value="고정 파티" if schedule.is_recurring else "고정 아님", inline=True
         )
         embed.add_field(
             name="시간",

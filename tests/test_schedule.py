@@ -161,7 +161,7 @@ def test_to_kst_treats_naive_datetime_as_utc():
     assert to_kst(naive) == kst(2026, 9, 10, 21, 0)
 
 
-# --- 1회성(비고정) 일정 ---------------------------------------------------------
+# --- 고정이 아닌 일정 -----------------------------------------------------------
 
 
 def test_once_occurrence_returns_the_stored_moment():
@@ -172,7 +172,7 @@ def test_once_occurrence_returns_the_stored_moment():
 
 
 def test_once_occurrence_does_not_roll_forward_when_passed():
-    # 1회성 일정은 반복하지 않으므로 지난 시각이어도 그대로 둔다.
+    # 고정이 아닌 일정은 반복하지 않으므로 지난 시각이어도 그대로 둔다.
     now = kst(2026, 9, 11, 12, 0)
     target = kst(2026, 9, 10, 21, 0)
     result = next_occurrence(now, repeat_type="once", hour=21, minute=0, once_at=target)
