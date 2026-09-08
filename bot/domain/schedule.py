@@ -85,11 +85,6 @@ def period_key(repeat_type: str, moment: datetime) -> str:
     raise ValueError(f"알 수 없는 반복 주기: {repeat_type}")
 
 
-def shift_weeks(moment: datetime, weeks: int) -> datetime:
-    """주차 이동. '지난주' 수익을 볼 때 쓴다."""
-    return to_kst(moment) + timedelta(weeks=weeks)
-
-
 # --- 다음 실행 시각 ------------------------------------------------------------
 
 

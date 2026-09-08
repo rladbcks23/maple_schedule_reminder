@@ -18,7 +18,6 @@ from ..domain.schedule import (
     month_period_key,
     now_kst,
     now_utc,
-    shift_weeks,
     week_period_key,
 )
 from ..models import ClearRecord
@@ -40,24 +39,18 @@ log = logging.getLogger("maple.income")
 
 FOOTER = "부가 수익을 제외한 결정석값입니다."
 
-WEEK_CHOICES = [
-    app_commands.Choice(name="이번주", value=0),
-    app_commands.Choice(name="지난주", value=-1),
-]
-
-
-def period_keys_for(week_offset: int) -> tuple[str, str]:
-    """조회할 주차 키와 월 키.
+def current_period_keys() -> tuple[str, str]:
+    """지금 주기의 주차 키와 월 키.
 
     주간 보스는 주차 키로, 월간 보스(검은 마법사)는 월 키로 기록되므로
-    한 번의 정산에서 두 키를 함께 본다. 월 키는 해당 주가 속한 달을 쓴다.
+    한 번의 정산에서 두 키를 함께 본다.
     """
-    moment = shift_weeks(now_kst(), week_offset)
+    moment = now_kst()
     return week_period_key(moment), month_period_key(moment)
 
 
-def period_key_for_boss(boss_name: str, week_offset: int = 0) -> str:
-    moment = shift_weeks(now_kst(), week_offset)
+def period_key_for_boss(boss_name: str) -> str:
+    moment = now_kst()
     repeat_type = REPEAT_MONTHLY if is_monthly_boss(boss_name) else REPEAT_WEEKLY
     return month_period_key(moment) if repeat_type == REPEAT_MONTHLY else week_period_key(moment)
 
@@ -68,19 +61,12 @@ class Income(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="수익", description="이번 주기에 번 결정석 수익을 정산합니다.")
-    @app_commands.describe(
-        캐릭터="비우면 대표 캐릭터, 대표가 없으면 내 전 캐릭터", 주차="이번주 / 지난주"
-    )
+    @app_commands.describe(캐릭터="비우면 대표 캐릭터, 대표가 없으면 내 전 캐릭터")
     @app_commands.autocomplete(캐릭터=character_autocomplete)
-    @app_commands.choices(주차=WEEK_CHOICES)
     async def income(
-        self,
-        interaction: discord.Interaction,
-        캐릭터: str | None = None,
-        주차: app_commands.Choice[int] | None = None,
+        self, interaction: discord.Interaction, 캐릭터: str | None = None
     ) -> None:
-        offset = 주차.value if 주차 else 0
-        week_key, month_key = period_keys_for(offset)
+        week_key, month_key = current_period_keys()
 
         with open_session(interaction) as session:
             targets, error = resolve_target_characters(
@@ -112,10 +98,9 @@ class Income(commands.Cog):
             report = calculate_income(clears, party_infos(session, interaction.guild_id))
             target_names = ", ".join(character.display_name for character in targets)
 
-        기간 = "이번주" if offset == 0 else "지난주"
         embed = discord.Embed(
-            title=f"💰 {target_names} · {기간} 결정석 정산",
-            description=f"주차 `{week_key}` · 월간 `{month_key}`",
+            title=f"💰 {target_names} · 결정석 정산",
+            description=f"주간 `{week_key}` · 월간 `{month_key}`",
             color=EMBED_COLOR,
         )
 

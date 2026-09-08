@@ -10,7 +10,6 @@ from bot.domain.schedule import (
     next_occurrence,
     parse_date,
     period_key,
-    shift_weeks,
     to_kst,
     to_utc,
     week_period_key,
@@ -68,11 +67,6 @@ def test_period_key_dispatches_on_repeat_type():
     moment = kst(2026, 9, 13, 12, 0)
     assert period_key("weekly", moment) == "2026-W37"
     assert period_key("monthly", moment) == "2026-09"
-
-
-def test_shift_weeks_moves_to_previous_period():
-    moment = kst(2026, 9, 13, 12, 0)
-    assert week_period_key(shift_weeks(moment, -1)) == "2026-W36"
 
 
 # --- 일 clamp ----------------------------------------------------------------
