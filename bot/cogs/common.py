@@ -20,13 +20,14 @@ from ..db import session_scope
 from ..domain.boss_data import (
     DIFFICULTY_KO,
     canonical_boss_name,
+    default_boss_image,
     difficulties_for,
     normalize,
     search_boss_names,
 )
 from ..domain.income import PartyInfo
 from ..domain.schedule import format_schedule_time, next_occurrence, now_kst
-from ..models import Character, PartySchedule
+from ..models import BossImage, Character, PartySchedule
 
 EMBED_COLOR = 0xF39C12
 EMBED_COLOR_WARN = 0xE74C3C
@@ -47,9 +48,7 @@ def open_session(interaction: discord.Interaction) -> Iterator[Session]:
 async def boss_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> list[app_commands.Choice[str]]:
-    return [
-        app_commands.Choice(name=name, value=name) for name in search_boss_names(current)
-    ]
+    return [app_commands.Choice(name=name, value=name) for name in search_boss_names(current)]
 
 
 async def difficulty_autocomplete(
@@ -136,18 +135,75 @@ def next_run(schedule: PartySchedule, now: datetime | None = None) -> datetime:
         month_day=schedule.month_day,
         hour=schedule.hour,
         minute=schedule.minute,
+        once_at=schedule.once_at,
     )
 
 
-def schedule_label(schedule: PartySchedule) -> str:
-    when = format_schedule_time(
+def schedule_when(schedule: PartySchedule) -> str:
+    return format_schedule_time(
         schedule.repeat_type,
         schedule.weekday,
         schedule.month_day,
         schedule.hour,
         schedule.minute,
+        once_at=schedule.once_at,
     )
-    return f"{schedule.difficulty.upper()} {schedule.boss_name} · {when}"
+
+
+def schedule_label(schedule: PartySchedule) -> str:
+    표시 = "고정" if schedule.is_recurring else "1회"
+    return (
+        f"[{표시}] {schedule.difficulty.upper()} {schedule.boss_name} · {schedule_when(schedule)}"
+    )
+
+
+def boss_image_url(session: Session, guild_id: int, boss_name: str) -> str | None:
+    """서버가 등록한 보스 사진. 없으면 boss_data의 기본값을 쓴다."""
+    row = session.get(BossImage, (guild_id, boss_name))
+    if row is not None:
+        return row.image_url
+    return default_boss_image(boss_name)
+
+
+def schedules_of_character(
+    session: Session, guild_id: int, character_id: int
+) -> list[PartySchedule]:
+    """해당 캐릭터가 파티원으로 들어가 있는 활성 일정."""
+    return [
+        schedule
+        for schedule in active_schedules(session, guild_id)
+        if any(member.character_id == character_id for member in schedule.members)
+    ]
+
+
+class ConfirmView(discord.ui.View):
+    """되돌리기 어려운 동작 앞에 두는 확인 버튼."""
+
+    def __init__(self, user_id: int, label: str = "삭제") -> None:
+        super().__init__(timeout=60)
+        self.user_id = user_id
+        self.confirmed: bool | None = None
+        self.confirm.label = label
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id == self.user_id:
+            return True
+        await interaction.response.send_message(
+            "⛔ 명령을 실행한 사람만 누를 수 있습니다.", ephemeral=True
+        )
+        return False
+
+    @discord.ui.button(label="삭제", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        self.confirmed = True
+        await interaction.response.defer()
+        self.stop()
+
+    @discord.ui.button(label="취소", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        self.confirmed = False
+        await interaction.response.defer()
+        self.stop()
 
 
 def party_infos(session: Session, guild_id: int) -> list[PartyInfo]:
@@ -165,9 +221,7 @@ def party_infos(session: Session, guild_id: int) -> list[PartyInfo]:
 
 def find_character(session: Session, guild_id: int, name: str) -> Character | None:
     """이름으로 캐릭터를 찾는다. 공백 차이는 무시한다."""
-    rows = session.scalars(
-        select(Character).where(Character.guild_id == guild_id)
-    ).all()
+    rows = session.scalars(select(Character).where(Character.guild_id == guild_id)).all()
     needle = normalize(name)
     for row in rows:
         if normalize(row.name) == needle:
@@ -191,6 +245,17 @@ def get_or_create_character(
     session.add(character)
     session.flush()
     return character
+
+
+def guild_characters(session: Session, guild_id: int) -> list[Character]:
+    """서버에 등록된 캐릭터 전부. 대표 캐릭터가 앞에 온다."""
+    return list(
+        session.scalars(
+            select(Character)
+            .where(Character.guild_id == guild_id)
+            .order_by(Character.is_main.desc(), Character.name)
+        ).all()
+    )
 
 
 def characters_of_user(session: Session, guild_id: int, user_id: int) -> list[Character]:
