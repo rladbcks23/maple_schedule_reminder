@@ -15,6 +15,7 @@ from .db import build_engine, build_session_factory
 log = logging.getLogger("maple")
 
 EXTENSIONS = (
+    "bot.cogs.help",
     "bot.cogs.character",
     "bot.cogs.party",
     "bot.cogs.income",
