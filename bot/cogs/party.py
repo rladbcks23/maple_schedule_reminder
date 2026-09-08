@@ -254,7 +254,7 @@ class Party(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="파티등록", description="보스 파티 일정을 등록합니다.")
+    @app_commands.command(name="파티등록", description="보스 파티를 등록합니다. 고정을 끄면 1회성, 파티원을 비우면 목록에서 고릅니다.")
     @app_commands.describe(
         보스="보스 이름",
         난이도="이 보스에 있는 난이도만 고를 수 있습니다",
@@ -443,7 +443,7 @@ class Party(commands.Cog):
 
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="내일정", description="캐릭터가 들어가 있는 파티 일정을 봅니다.")
+    @app_commands.command(name="내일정", description="캐릭터가 낀 파티를 봅니다. 캐릭터를 비우면 내 대표 캐릭터 기준입니다.")
     @app_commands.describe(캐릭터="비우면 대표 캐릭터, 대표가 없으면 내 전 캐릭터")
     @app_commands.autocomplete(캐릭터=my_character_autocomplete)
     async def my_schedules(
@@ -489,7 +489,7 @@ class Party(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="파티수정", description="파티 일정의 시각·요일·파티원을 고칩니다.")
+    @app_commands.command(name="파티수정", description="파티의 시각·요일·파티원을 고칩니다. 일정에는 SU4K 같은 코드를 넣습니다.")
     @app_commands.describe(일정="고칠 파티 (코드 또는 자동완성)")
     @app_commands.autocomplete(일정=schedule_autocomplete)
     async def edit(self, interaction: discord.Interaction, 일정: str) -> None:
@@ -505,7 +505,7 @@ class Party(commands.Cog):
 
         await interaction.response.send_modal(modal)
 
-    @app_commands.command(name="파티삭제", description="파티 일정을 삭제합니다.")
+    @app_commands.command(name="파티삭제", description="파티 일정을 삭제합니다. 일정에는 SU4K 같은 코드를 넣습니다.")
     @app_commands.describe(일정="삭제할 파티 (코드 또는 자동완성)")
     @app_commands.autocomplete(일정=schedule_autocomplete)
     async def delete(self, interaction: discord.Interaction, 일정: str) -> None:

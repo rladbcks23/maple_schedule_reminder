@@ -47,7 +47,7 @@ class Help(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="명령어", description="쓸 수 있는 커맨드를 전부 보여줍니다.")
+    @app_commands.command(name="명령어", description="쓸 수 있는 커맨드를 전부 보여줍니다. 공개를 켜면 채널에 올립니다.")
     @app_commands.describe(공개="채널에 모두가 보이게 올립니다 (기본: 나만 보기)")
     async def help_command(self, interaction: discord.Interaction, 공개: bool = False) -> None:
         grouped: dict[str, list[app_commands.Command]] = {}
