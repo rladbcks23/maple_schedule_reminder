@@ -22,6 +22,7 @@ def build_engine(database_url: str) -> Engine:
     engine = create_engine(database_url, echo=False, future=True, connect_args=connect_args)
 
     if database_url.startswith("sqlite"):
+
         @event.listens_for(engine, "connect")
         def _enable_foreign_keys(dbapi_connection, _record):  # pragma: no cover - 드라이버 훅
             cursor = dbapi_connection.cursor()

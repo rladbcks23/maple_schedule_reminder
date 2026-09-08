@@ -32,6 +32,11 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
 
+[tool.ruff.lint.isort]
+# 로컬에 alembic/ 디렉터리가 있어서 라이브러리를 1st-party로 오인하는 걸 막는다.
+known-first-party = ["bot"]
+known-third-party = ["alembic"]
+
 [tool.ruff.lint.per-file-ignores]
 # 슬래시 커맨드 파라미터가 한글이라 함수 인자 이름이 길어지는 건 감수한다.
 "bot/cogs/*.py" = ["E501"]

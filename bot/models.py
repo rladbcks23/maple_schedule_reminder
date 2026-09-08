@@ -155,9 +155,7 @@ class NotificationLog(Base):
 
     __tablename__ = "notification_log"
     __table_args__ = (
-        UniqueConstraint(
-            "schedule_id", "kind", "occurrence_key", name="uq_notification_once"
-        ),
+        UniqueConstraint("schedule_id", "kind", "occurrence_key", name="uq_notification_once"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

@@ -32,9 +32,7 @@ def load_config(*, dotenv: bool = True) -> Config:
 
     token = os.getenv("DISCORD_TOKEN", "").strip()
     if not token:
-        raise ConfigError(
-            "DISCORD_TOKEN이 비어 있습니다. .env.example을 .env로 복사해 채워주세요."
-        )
+        raise ConfigError("DISCORD_TOKEN이 비어 있습니다. .env.example을 .env로 복사해 채워주세요.")
 
     log_level = os.getenv("LOG_LEVEL", DEFAULT_LOG_LEVEL).strip().upper() or DEFAULT_LOG_LEVEL
     if log_level not in VALID_LOG_LEVELS:
