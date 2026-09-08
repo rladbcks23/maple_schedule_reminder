@@ -63,10 +63,11 @@ class Character(Base):
 
 
 class PartySchedule(Base):
-    """반복되는 보스 파티 일정.
+    """보스 파티 일정.
 
-    weekday는 1=월 … 7=일이며 repeat_type이 weekly일 때만 채운다.
-    month_day는 monthly일 때만 채운다.
+    repeat_type이 weekly면 weekday(1=월 … 7=일)를, monthly면 month_day를,
+    once면 once_at(UTC)을 채운다. once는 고정 파티가 아닌 1회성 일정이라
+    알림이 나간 뒤 비활성화된다.
     """
 
     __tablename__ = "party_schedule"
@@ -79,6 +80,7 @@ class PartySchedule(Base):
     repeat_type: Mapped[str] = mapped_column(String(16), nullable=False, default="weekly")
     weekday: Mapped[int | None] = mapped_column(Integer, nullable=True)
     month_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    once_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     hour: Mapped[int] = mapped_column(Integer, nullable=False)
     minute: Mapped[int] = mapped_column(Integer, nullable=False)
     created_by: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -89,6 +91,25 @@ class PartySchedule(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+
+    @property
+    def is_recurring(self) -> bool:
+        """고정 파티인지. once는 한 번 돌고 사라진다."""
+        return self.repeat_type != "once"
+
+
+class BossImage(Base):
+    """서버별 보스 사진. 알림 임베드의 썸네일로 쓴다.
+
+    보스 이미지는 기본값으로 넣어둘 만한 공개 URL이 없어서 서버가 직접 등록한다.
+    등록 전에는 사진 없이 이름과 난이도만 나간다.
+    """
+
+    __tablename__ = "boss_image"
+
+    guild_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    boss_name: Mapped[str] = mapped_column(String(32), primary_key=True)
+    image_url: Mapped[str] = mapped_column(String(500), nullable=False)
 
 
 class PartyMember(Base):
