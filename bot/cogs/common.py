@@ -20,14 +20,13 @@ from ..db import session_scope
 from ..domain.boss_data import (
     DIFFICULTY_KO,
     canonical_boss_name,
-    default_boss_image,
     difficulties_for,
     normalize,
     search_boss_names,
 )
 from ..domain.income import PartyInfo
 from ..domain.schedule import format_schedule_time, next_occurrence, now_kst
-from ..models import BossImage, Character, PartySchedule
+from ..models import Character, PartySchedule
 
 EMBED_COLOR = 0xF39C12
 EMBED_COLOR_WARN = 0xE74C3C
@@ -155,14 +154,6 @@ def schedule_label(schedule: PartySchedule) -> str:
     return (
         f"[{표시}] {schedule.difficulty.upper()} {schedule.boss_name} · {schedule_when(schedule)}"
     )
-
-
-def boss_image_url(session: Session, guild_id: int, boss_name: str) -> str | None:
-    """서버가 등록한 보스 사진. 없으면 boss_data의 기본값을 쓴다."""
-    row = session.get(BossImage, (guild_id, boss_name))
-    if row is not None:
-        return row.image_url
-    return default_boss_image(boss_name)
 
 
 def schedules_of_character(

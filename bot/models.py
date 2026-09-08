@@ -98,20 +98,6 @@ class PartySchedule(Base):
         return self.repeat_type != "once"
 
 
-class BossImage(Base):
-    """서버별 보스 사진. 알림 임베드의 썸네일로 쓴다.
-
-    보스 이미지는 기본값으로 넣어둘 만한 공개 URL이 없어서 서버가 직접 등록한다.
-    등록 전에는 사진 없이 이름과 난이도만 나간다.
-    """
-
-    __tablename__ = "boss_image"
-
-    guild_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    boss_name: Mapped[str] = mapped_column(String(32), primary_key=True)
-    image_url: Mapped[str] = mapped_column(String(500), nullable=False)
-
-
 class PartyMember(Base):
     """파티에 참여하는 캐릭터. 이 일정의 멤버 수가 곧 분배 인원수다."""
 

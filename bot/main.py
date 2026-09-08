@@ -29,7 +29,6 @@ REQUIRED_TABLES = (
     "party_member",
     "clear_record",
     "notification_log",
-    "boss_image",
 )
 
 

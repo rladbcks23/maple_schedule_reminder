@@ -18,8 +18,9 @@ from discord.ext import commands, tasks
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from .cogs.common import EMBED_COLOR, active_schedules, boss_image_url, next_run
+from .cogs.common import EMBED_COLOR, active_schedules, next_run
 from .db import session_scope
+from .domain.boss_data import default_boss_image
 from .domain.formatting import difficulty_ko, difficulty_tag, format_meso
 from .domain.income import party_income
 from .domain.schedule import (
@@ -101,7 +102,7 @@ class Scheduler(commands.Cog):
 
             for config in configs:
                 for schedule in active_schedules(session, config.guild_id):
-                    image_url = boss_image_url(session, config.guild_id, schedule.boss_name)
+                    image_url = default_boss_image(schedule.boss_name)
                     upcoming = next_run(schedule, now)
 
                     if timedelta(0) < upcoming - now <= PRE_ALERT_WINDOW:

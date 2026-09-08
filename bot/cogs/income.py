@@ -9,7 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 from sqlalchemy import select
 
-from ..domain.boss_data import is_monthly_boss
+from ..domain.boss_data import default_boss_image, is_monthly_boss
 from ..domain.formatting import difficulty_tag, format_meso, format_sol_erda
 from ..domain.income import ClearInput, calculate_income, party_income
 from ..domain.schedule import (
@@ -25,7 +25,6 @@ from ..models import ClearRecord
 from .common import (
     EMBED_COLOR,
     boss_autocomplete,
-    boss_image_url,
     character_autocomplete,
     difficulty_autocomplete,
     get_schedule,
@@ -281,9 +280,7 @@ class Income(commands.Cog):
             )
             return
 
-        with open_session(interaction) as session:
-            image_url = boss_image_url(session, interaction.guild_id, boss_name)
-
+        image_url = default_boss_image(boss_name)
         embed = discord.Embed(
             title=f"💎 {difficulty_tag(difficulty)} {boss_name}",
             description="월간 보스" if is_monthly_boss(boss_name) else "주간 보스",
