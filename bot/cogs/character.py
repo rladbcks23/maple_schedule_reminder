@@ -40,9 +40,19 @@ class Characters(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="캐릭터등록", description="내 디스코드 계정에 캐릭터를 연결합니다.")
-    @app_commands.describe(이름="캐릭터명", 대표="정산·기록의 기본 대상으로 삼을지")
-    async def create(self, interaction: discord.Interaction, 이름: str, 대표: bool = False) -> None:
+    @app_commands.command(name="캐릭터등록", description="캐릭터를 디스코드 계정에 연결합니다.")
+    @app_commands.describe(
+        이름="캐릭터명",
+        유저="이 캐릭터의 주인. 비우면 나로 등록합니다",
+        대표="그 사람의 정산·기록 기본 대상으로 삼을지",
+    )
+    async def create(
+        self,
+        interaction: discord.Interaction,
+        이름: str,
+        유저: discord.Member | None = None,
+        대표: bool = False,
+    ) -> None:
         name = 이름.strip()
         if not name:
             await interaction.response.send_message("❓ 캐릭터명을 적어주세요.", ephemeral=True)
@@ -53,23 +63,27 @@ class Characters(commands.Cog):
             )
             return
 
+        owner = 유저 or interaction.user
+        본인 = owner.id == interaction.user.id
+        if owner.bot:
+            await interaction.response.send_message(
+                "❓ 봇 계정에는 캐릭터를 연결할 수 없습니다.", ephemeral=True
+            )
+            return
+
         with open_session(interaction) as session:
             existing = find_character(session, interaction.guild_id, name)
-            if existing is not None and existing.discord_user_id not in (
-                None,
-                interaction.user.id,
-            ):
+            if existing is not None and existing.discord_user_id not in (None, owner.id):
                 await interaction.response.send_message(
-                    f"⛔ `{name}` 은 이미 다른 사람의 캐릭터로 등록돼 있습니다.", ephemeral=True
+                    f"⛔ `{name}` 은 이미 <@{existing.discord_user_id}> 님의 캐릭터입니다.",
+                    ephemeral=True,
                 )
                 return
 
             was_unlinked = existing is not None and existing.discord_user_id is None
-            character = get_or_create_character(
-                session, interaction.guild_id, name, interaction.user.id
-            )
+            character = get_or_create_character(session, interaction.guild_id, name, owner.id)
             if 대표:
-                for other in characters_of_user(session, interaction.guild_id, interaction.user.id):
+                for other in characters_of_user(session, interaction.guild_id, owner.id):
                     other.is_main = other.id == character.id
                 character.is_main = True
             session.flush()
@@ -77,8 +91,12 @@ class Characters(commands.Cog):
         머리말 = (
             "🔗 미연결 캐릭터를 계정에 연결했습니다" if was_unlinked else "✅ 캐릭터를 등록했습니다"
         )
+        주인 = "" if 본인 else f" → {owner.mention}"
         꼬리말 = " (대표 캐릭터)" if 대표 else ""
-        await interaction.response.send_message(f"{머리말}: **{name}**{꼬리말}", ephemeral=True)
+        # 남을 등록했으면 당사자가 알 수 있게 채널에 공개한다.
+        await interaction.response.send_message(
+            f"{머리말}: **{name}**{주인}{꼬리말}", ephemeral=본인
+        )
 
     @app_commands.command(name="캐릭터목록", description="등록된 캐릭터를 봅니다.")
     @app_commands.describe(유저="비우면 서버 전체 캐릭터")
