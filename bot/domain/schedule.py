@@ -15,7 +15,9 @@ WEEKDAY_NAMES = ("월", "화", "수", "목", "금", "토", "일")
 
 REPEAT_WEEKLY = "weekly"
 REPEAT_MONTHLY = "monthly"
-REPEAT_TYPES = (REPEAT_WEEKLY, REPEAT_MONTHLY)
+# 고정 파티가 아닌 1회성 일정. 알림이 나간 뒤 비활성화된다.
+REPEAT_ONCE = "once"
+REPEAT_TYPES = (REPEAT_WEEKLY, REPEAT_MONTHLY, REPEAT_ONCE)
 
 
 # --- 타임존 -------------------------------------------------------------------
@@ -109,12 +111,19 @@ def next_occurrence(
     minute: int,
     weekday: int | None = None,
     month_day: int | None = None,
+    once_at: datetime | None = None,
 ) -> datetime:
     """다음 실행 시각(KST aware).
 
     weekday는 1=월 … 7=일. 계산 결과가 현재 시각보다 뒤가 아니면 다음 주기로 넘긴다.
+    once는 반복하지 않으므로 지정된 시각을 그대로 돌려준다(지난 시각이어도).
     """
     local = to_kst(now)
+
+    if repeat_type == REPEAT_ONCE:
+        if once_at is None:
+            raise ValueError("once 일정에는 once_at이 필요합니다.")
+        return to_kst(once_at)
 
     if repeat_type == REPEAT_WEEKLY:
         if weekday is None:
@@ -154,11 +163,47 @@ def occurrence_key(moment: datetime) -> str:
     return to_kst(moment).strftime("%Y-%m-%dT%H:%M")
 
 
+def parse_date(text: str, now: datetime | None = None) -> datetime | None:
+    """'2026-09-10' / '09-10' / '9/10' 을 그 날 00:00 KST로.
+
+    연도를 생략하면 올해로 보되, 이미 지난 날짜면 내년으로 넘긴다.
+    """
+    local = to_kst(now or now_kst())
+    cleaned = text.strip().replace("/", "-").replace(".", "-")
+    parts = [chunk for chunk in cleaned.split("-") if chunk]
+
+    try:
+        if len(parts) == 3:
+            year, month, day = (int(parts[0]), int(parts[1]), int(parts[2]))
+        elif len(parts) == 2:
+            year, month, day = (local.year, int(parts[0]), int(parts[1]))
+        else:
+            return None
+        parsed = datetime(year, month, day, tzinfo=KST)
+    except ValueError:
+        return None
+
+    if len(parts) == 2 and parsed.date() < local.date():
+        try:
+            parsed = parsed.replace(year=year + 1)
+        except ValueError:  # 2월 29일 같은 경우
+            return None
+    return parsed
+
+
 def format_schedule_time(
-    repeat_type: str, weekday: int | None, month_day: int | None, hour: int, minute: int
+    repeat_type: str,
+    weekday: int | None,
+    month_day: int | None,
+    hour: int,
+    minute: int,
+    once_at: datetime | None = None,
 ) -> str:
-    """'목 21:00' / '매월 15일 21:00' 형태의 사람이 읽는 표기."""
+    """'매주 목 21:00' / '매월 15일 21:00' / '2026-09-10(목) 21:00' 표기."""
     clock = f"{hour:02d}:{minute:02d}"
+    if repeat_type == REPEAT_ONCE and once_at is not None:
+        local = to_kst(once_at)
+        return f"{local:%Y-%m-%d}({WEEKDAY_NAMES[local.weekday()]}) {clock}"
     if repeat_type == REPEAT_MONTHLY and month_day is not None:
         return f"매월 {month_day}일 {clock}"
     if repeat_type == REPEAT_WEEKLY and weekday is not None:

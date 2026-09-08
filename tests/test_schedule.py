@@ -5,8 +5,10 @@ import pytest
 from bot.domain.schedule import (
     KST,
     clamp_day,
+    format_schedule_time,
     month_period_key,
     next_occurrence,
+    parse_date,
     period_key,
     shift_weeks,
     to_kst,
@@ -163,3 +165,69 @@ def test_to_kst_treats_naive_datetime_as_utc():
     # DB에서 tz 정보가 떨어진 채로 올라오는 경우를 대비한다.
     naive = datetime(2026, 9, 10, 12, 0)
     assert to_kst(naive) == kst(2026, 9, 10, 21, 0)
+
+
+# --- 1회성(비고정) 일정 ---------------------------------------------------------
+
+
+def test_once_occurrence_returns_the_stored_moment():
+    now = kst(2026, 9, 8, 12, 0)
+    target = kst(2026, 9, 10, 21, 0)
+    result = next_occurrence(now, repeat_type="once", hour=21, minute=0, once_at=target)
+    assert result == target
+
+
+def test_once_occurrence_does_not_roll_forward_when_passed():
+    # 1회성 일정은 반복하지 않으므로 지난 시각이어도 그대로 둔다.
+    now = kst(2026, 9, 11, 12, 0)
+    target = kst(2026, 9, 10, 21, 0)
+    result = next_occurrence(now, repeat_type="once", hour=21, minute=0, once_at=target)
+    assert result == target
+
+
+def test_once_occurrence_requires_once_at():
+    with pytest.raises(ValueError):
+        next_occurrence(kst(2026, 9, 8, 12, 0), repeat_type="once", hour=21, minute=0)
+
+
+# --- 날짜 파싱 -----------------------------------------------------------------
+
+
+def test_parse_date_accepts_full_date():
+    assert parse_date("2026-09-10", now=kst(2026, 9, 8)) == kst(2026, 9, 10)
+    assert parse_date("2026/09/10", now=kst(2026, 9, 8)) == kst(2026, 9, 10)
+    assert parse_date("2026.09.10", now=kst(2026, 9, 8)) == kst(2026, 9, 10)
+
+
+def test_parse_date_fills_in_current_year():
+    assert parse_date("09-10", now=kst(2026, 9, 8)) == kst(2026, 9, 10)
+    assert parse_date("9/10", now=kst(2026, 9, 8)) == kst(2026, 9, 10)
+
+
+def test_parse_date_rolls_to_next_year_when_already_passed():
+    # 연도를 생략했고 올해 날짜가 이미 지났으면 내년으로 본다.
+    assert parse_date("01-05", now=kst(2026, 9, 8)) == kst(2027, 1, 5)
+
+
+def test_parse_date_keeps_today():
+    assert parse_date("09-08", now=kst(2026, 9, 8, 15, 0)) == kst(2026, 9, 8)
+
+
+def test_parse_date_rejects_bad_input():
+    now = kst(2026, 9, 8)
+    assert parse_date("내일", now=now) is None
+    assert parse_date("2026-13-01", now=now) is None
+    assert parse_date("2026-02-30", now=now) is None
+    assert parse_date("10", now=now) is None
+
+
+# --- 일정 표기 -----------------------------------------------------------------
+
+
+def test_format_schedule_time_by_repeat_type():
+    assert format_schedule_time("weekly", 4, None, 21, 0) == "매주 목 21:00"
+    assert format_schedule_time("monthly", None, 15, 20, 30) == "매월 15일 20:30"
+    assert (
+        format_schedule_time("once", None, None, 21, 0, once_at=kst(2026, 9, 10, 21, 0))
+        == "2026-09-10(목) 21:00"
+    )

@@ -191,6 +191,20 @@ MONTHLY_BOSSES = frozenset({"검은 마법사"})
 # 시즌 보스는 파티 일정이 있어도 항상 1인 분배로 본다.
 SEASON_BOSS_MARKERS = ("시즌보스", "메이린")
 
+# 보스 사진 URL. 기본값으로 넣어둘 만한 공개 이미지가 없어서 비워둔다.
+# 서버 단위로는 /보스사진 커맨드로 등록하고, 여기에 적으면 모든 서버의 기본값이 된다.
+# 예) "카링": "https://example.com/karing.png"
+BOSS_IMAGES: dict[str, str] = {}
+
+
+def default_boss_image(boss_name: str) -> str | None:
+    """BOSS_IMAGES에 적어둔 기본 사진. 없으면 None."""
+    normalized = normalize(boss_name)
+    for name, url in BOSS_IMAGES.items():
+        if normalize(name) == normalized:
+            return url
+    return None
+
 
 def normalize(text: str) -> str:
     """공백을 모두 제거하고 소문자로. '반 레온' -> '반레온'"""
