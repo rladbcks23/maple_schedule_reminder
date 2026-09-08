@@ -25,13 +25,13 @@ from .common import (
     EMBED_COLOR,
     boss_autocomplete,
     difficulty_autocomplete,
-    get_schedule,
     my_character_autocomplete,
     open_session,
     party_infos,
+    resolve_schedule,
     resolve_target_characters,
     schedule_autocomplete,
-    schedule_label,
+    schedule_tag,
     validate_boss_and_difficulty,
 )
 
@@ -295,24 +295,19 @@ class Income(commands.Cog):
     @app_commands.command(
         name="파티수익", description="파티 일정의 총 결정석값과 1인 분배액을 봅니다."
     )
-    @app_commands.describe(일정="확인할 파티 일정")
+    @app_commands.describe(일정="확인할 파티 (코드 또는 자동완성)")
     @app_commands.autocomplete(일정=schedule_autocomplete)
     async def party_income_command(self, interaction: discord.Interaction, 일정: str) -> None:
-        if not 일정.isdigit():
-            await interaction.response.send_message(
-                "❓ 자동완성 목록에서 일정을 골라주세요.", ephemeral=True
-            )
-            return
-
         with open_session(interaction) as session:
-            schedule = get_schedule(session, interaction.guild_id, int(일정))
+            schedule = resolve_schedule(session, interaction.guild_id, 일정)
             if schedule is None:
                 await interaction.response.send_message(
-                    "❓ 해당 일정을 찾을 수 없습니다.", ephemeral=True
+                    f"❓ `{일정}` 코드의 파티가 없습니다. `/파티목록` 에서 확인해주세요.",
+                    ephemeral=True,
                 )
                 return
 
-            label = schedule_label(schedule)
+            label = schedule_tag(schedule)
             member_names = [member.character.display_name for member in schedule.members]
             result = party_income(schedule.boss_name, schedule.difficulty, len(schedule.members))
 

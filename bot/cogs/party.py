@@ -29,16 +29,17 @@ from .common import (
     boss_autocomplete,
     difficulty_autocomplete,
     get_or_create_character,
-    get_schedule,
     guild_characters,
+    issue_code,
     my_character_autocomplete,
     next_run,
     open_session,
     parse_clock,
     parse_member_names,
+    resolve_schedule,
     resolve_target_characters,
     schedule_autocomplete,
-    schedule_label,
+    schedule_tag,
     schedule_when,
     schedules_of_character,
     validate_boss_and_difficulty,
@@ -78,7 +79,7 @@ def schedule_embed(schedule: PartySchedule, title: str) -> discord.Embed:
 
     embed = discord.Embed(
         title=title,
-        description=f"**{schedule.difficulty.upper()} {schedule.boss_name}**",
+        description=f"`{schedule.code}` · **{schedule.difficulty.upper()} {schedule.boss_name}**",
         color=EMBED_COLOR,
     )
     embed.add_field(
@@ -92,7 +93,7 @@ def schedule_embed(schedule: PartySchedule, title: str) -> discord.Embed:
         inline=False,
     )
     embed.add_field(name="예상 1인 분배", value=share_text(schedule), inline=False)
-    embed.set_footer(text="부가 수익을 제외한 결정석값입니다.")
+    embed.set_footer(text=f"이 파티의 코드는 {schedule.code} 입니다. 수정·삭제할 때 쓰세요.")
     return embed
 
 
@@ -219,8 +220,8 @@ class EditScheduleModal(discord.ui.Modal):
         names = parse_member_names(str(self.members.value or ""))
 
         with open_session(interaction) as session:
-            schedule = get_schedule(session, interaction.guild_id, self.schedule_id)
-            if schedule is None:
+            schedule = session.get(PartySchedule, self.schedule_id)
+            if schedule is None or not schedule.is_active:
                 await interaction.response.send_message(
                     "❓ 이미 삭제된 일정입니다.", ephemeral=True
                 )
@@ -325,6 +326,7 @@ class Party(commands.Cog):
                 created_by=interaction.user.id,
                 is_active=True,
             )
+            schedule.code = issue_code(session, interaction.guild_id, boss_name)
             session.add(schedule)
             session.flush()
 
@@ -428,7 +430,7 @@ class Party(commands.Cog):
             for schedule in schedules[:25]:
                 upcoming = next_run(schedule, now)
                 embed.add_field(
-                    name=f"#{schedule.id} · {schedule_label(schedule)}",
+                    name=schedule_tag(schedule),
                     value=(
                         f"{discord_timestamp(upcoming)}\n"
                         f"파티원 {len(schedule.members)}명: {summarize_members(schedule)}\n"
@@ -466,7 +468,7 @@ class Party(commands.Cog):
                     continue
 
                 줄 = [
-                    f"#{schedule.id} {schedule_label(schedule)}\n"
+                    f"{schedule_tag(schedule)}\n"
                     f"　{discord_timestamp(next_run(schedule, now))}"
                     f" · {len(schedule.members)}인 · {share_text(schedule)}"
                     for schedule in schedules[:10]
@@ -488,20 +490,15 @@ class Party(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="파티수정", description="파티 일정의 시각·요일·파티원을 고칩니다.")
-    @app_commands.describe(일정="고칠 파티 일정")
+    @app_commands.describe(일정="고칠 파티 (코드 또는 자동완성)")
     @app_commands.autocomplete(일정=schedule_autocomplete)
     async def edit(self, interaction: discord.Interaction, 일정: str) -> None:
-        if not 일정.isdigit():
-            await interaction.response.send_message(
-                "❓ 자동완성 목록에서 일정을 골라주세요.", ephemeral=True
-            )
-            return
-
         with open_session(interaction) as session:
-            schedule = get_schedule(session, interaction.guild_id, int(일정))
+            schedule = resolve_schedule(session, interaction.guild_id, 일정)
             if schedule is None:
                 await interaction.response.send_message(
-                    "❓ 해당 일정을 찾을 수 없습니다.", ephemeral=True
+                    f"❓ `{일정}` 코드의 파티가 없습니다. `/파티목록` 에서 확인해주세요.",
+                    ephemeral=True,
                 )
                 return
             modal = EditScheduleModal(schedule)
@@ -509,24 +506,19 @@ class Party(commands.Cog):
         await interaction.response.send_modal(modal)
 
     @app_commands.command(name="파티삭제", description="파티 일정을 삭제합니다.")
-    @app_commands.describe(일정="삭제할 파티 일정")
+    @app_commands.describe(일정="삭제할 파티 (코드 또는 자동완성)")
     @app_commands.autocomplete(일정=schedule_autocomplete)
     async def delete(self, interaction: discord.Interaction, 일정: str) -> None:
-        if not 일정.isdigit():
-            await interaction.response.send_message(
-                "❓ 자동완성 목록에서 일정을 골라주세요.", ephemeral=True
-            )
-            return
-
-        schedule_id = int(일정)
         with open_session(interaction) as session:
-            schedule = get_schedule(session, interaction.guild_id, schedule_id)
+            schedule = resolve_schedule(session, interaction.guild_id, 일정)
             if schedule is None:
                 await interaction.response.send_message(
-                    "❓ 해당 일정을 찾을 수 없습니다.", ephemeral=True
+                    f"❓ `{일정}` 코드의 파티가 없습니다. `/파티목록` 에서 확인해주세요.",
+                    ephemeral=True,
                 )
                 return
-            label = schedule_label(schedule)
+            schedule_id = schedule.id
+            label = schedule_tag(schedule)
 
         view = ConfirmView(interaction.user.id)
         await interaction.response.send_message(
@@ -539,8 +531,8 @@ class Party(commands.Cog):
             return
 
         with open_session(interaction) as session:
-            schedule = get_schedule(session, interaction.guild_id, schedule_id)
-            if schedule is None:
+            schedule = session.get(PartySchedule, schedule_id)
+            if schedule is None or not schedule.is_active:
                 await interaction.edit_original_response(
                     content="❓ 이미 삭제된 일정입니다.", view=None
                 )

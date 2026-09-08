@@ -24,6 +24,7 @@ from ..domain.boss_data import (
     normalize,
     search_boss_names,
 )
+from ..domain.code import generate_code, normalize_code
 from ..domain.income import PartyInfo
 from ..domain.schedule import format_schedule_time, next_occurrence, now_kst
 from ..models import Character, PartySchedule
@@ -80,10 +81,11 @@ async def schedule_autocomplete(
         schedules = active_schedules(session, interaction.guild_id)
         choices = []
         for schedule in schedules:
-            label = schedule_label(schedule)
+            # /파티목록 과 같은 표기를 써야 코드를 보고 그대로 고를 수 있다.
+            label = schedule_tag(schedule)
             if needle and needle not in normalize(label):
                 continue
-            choices.append(app_commands.Choice(name=label[:100], value=str(schedule.id)))
+            choices.append(app_commands.Choice(name=label[:100], value=schedule.code))
         return choices[:MAX_CHOICES]
 
 
@@ -147,6 +149,40 @@ def get_schedule(session: Session, guild_id: int, schedule_id: int) -> PartySche
     return schedule
 
 
+def issue_code(session: Session, guild_id: int, boss_name: str) -> str:
+    """서버 안에서 겹치지 않는 새 코드를 만든다.
+
+    비활성 일정의 코드까지 피한다. 방금 지운 파티의 코드가 곧바로 재활용되면
+    예전 대화를 보고 엉뚱한 일정을 건드리게 된다.
+    """
+    taken = set(
+        session.scalars(
+            select(PartySchedule.code).where(
+                PartySchedule.guild_id == guild_id, PartySchedule.code.is_not(None)
+            )
+        ).all()
+    )
+    return generate_code(boss_name, taken)
+
+
+def find_schedule_by_code(session: Session, guild_id: int, code: str) -> PartySchedule | None:
+    cleaned = normalize_code(code)
+    if not cleaned:
+        return None
+    return session.scalars(
+        select(PartySchedule).where(
+            PartySchedule.guild_id == guild_id,
+            PartySchedule.code == cleaned,
+            PartySchedule.is_active.is_(True),
+        )
+    ).first()
+
+
+def resolve_schedule(session: Session, guild_id: int, value: str) -> PartySchedule | None:
+    """자동완성 값(코드)이든 사람이 직접 친 코드든 일정 하나로 바꾼다."""
+    return find_schedule_by_code(session, guild_id, value)
+
+
 def next_run(schedule: PartySchedule, now: datetime | None = None) -> datetime:
     return next_occurrence(
         now or now_kst(),
@@ -175,6 +211,11 @@ def schedule_label(schedule: PartySchedule) -> str:
     return (
         f"[{표시}] {schedule.difficulty.upper()} {schedule.boss_name} · {schedule_when(schedule)}"
     )
+
+
+def schedule_tag(schedule: PartySchedule) -> str:
+    """'[SU4K] [고정] HARD 스우 · 매주 목 21:00' 형태. 목록과 자동완성이 같은 표기를 쓴다."""
+    return f"[{schedule.code}] {schedule_label(schedule)}"
 
 
 def schedules_of_character(

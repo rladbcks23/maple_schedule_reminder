@@ -71,10 +71,15 @@ class PartySchedule(Base):
     """
 
     __tablename__ = "party_schedule"
-    __table_args__ = (Index("ix_party_schedule_guild_active", "guild_id", "is_active"),)
+    __table_args__ = (
+        Index("ix_party_schedule_guild_active", "guild_id", "is_active"),
+        UniqueConstraint("guild_id", "code", name="uq_party_schedule_guild_code"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # 사람이 부르는 짧은 식별자. 서버 안에서만 고유하다.
+    code: Mapped[str | None] = mapped_column(String(8), nullable=True)
     boss_name: Mapped[str] = mapped_column(String(32), nullable=False)
     difficulty: Mapped[str] = mapped_column(String(16), nullable=False)
     repeat_type: Mapped[str] = mapped_column(String(16), nullable=False, default="weekly")
