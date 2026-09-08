@@ -90,6 +90,7 @@ async def schedule_autocomplete(
 async def character_autocomplete(
     interaction: discord.Interaction, current: str
 ) -> list[app_commands.Choice[str]]:
+    """서버의 모든 캐릭터. 캐릭터 관리 커맨드에서 쓴다."""
     if interaction.guild_id is None:
         return []
 
@@ -102,6 +103,26 @@ async def character_autocomplete(
         ).all()
         return [
             app_commands.Choice(name=row.display_name[:100], value=row.name)
+            for row in rows
+            if not needle or needle in normalize(row.name)
+        ][:MAX_CHOICES]
+
+
+async def my_character_autocomplete(
+    interaction: discord.Interaction, current: str
+) -> list[app_commands.Choice[str]]:
+    """내 계정에 연결된 캐릭터만. 어차피 남의 캐릭터는 지정할 수 없으므로
+    목록에도 띄우지 않아 헛고르는 일을 막는다."""
+    if interaction.guild_id is None:
+        return []
+
+    needle = normalize(current)
+    with open_session(interaction) as session:
+        rows = characters_of_user(session, interaction.guild_id, interaction.user.id)
+        return [
+            app_commands.Choice(
+                name=(f"⭐ {row.name}" if row.is_main else row.name)[:100], value=row.name
+            )
             for row in rows
             if not needle or needle in normalize(row.name)
         ][:MAX_CHOICES]
@@ -262,16 +283,26 @@ def characters_of_user(session: Session, guild_id: int, user_id: int) -> list[Ch
 def resolve_target_characters(
     session: Session, guild_id: int, user_id: int, name: str | None
 ) -> tuple[list[Character], str | None]:
-    """정산 대상 캐릭터를 정한다.
+    """정산·기록 대상 캐릭터를 정한다.
 
     이름을 주면 그 캐릭터 하나, 없으면 호출자의 대표 캐릭터,
     대표가 없으면 호출자에게 연결된 전 캐릭터를 쓴다.
     반환값의 두 번째 항목은 실패 사유 메시지다.
+
+    남의 캐릭터는 지정할 수 없다. 조회는 물론이고 클리어 기록을 남기거나
+    지우는 것도 같은 경로를 타기 때문에, 여기서 한 번 막아 전부 차단한다.
     """
     if name:
         character = find_character(session, guild_id, name)
         if character is None:
             return [], f"`{name}` 캐릭터를 찾을 수 없습니다."
+        if character.discord_user_id is None:
+            return [], (
+                f"`{character.name}` 은 아직 아무 계정에도 연결되지 않은 캐릭터입니다."
+                " 본인 것이라면 `/캐릭터등록` 으로 연결해주세요."
+            )
+        if character.discord_user_id != user_id:
+            return [], f"`{character.name}` 은 내 캐릭터가 아닙니다."
         return [character], None
 
     mine = characters_of_user(session, guild_id, user_id)

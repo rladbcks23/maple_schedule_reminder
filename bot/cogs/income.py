@@ -24,9 +24,9 @@ from ..models import ClearRecord
 from .common import (
     EMBED_COLOR,
     boss_autocomplete,
-    character_autocomplete,
     difficulty_autocomplete,
     get_schedule,
+    my_character_autocomplete,
     open_session,
     party_infos,
     resolve_target_characters,
@@ -38,6 +38,7 @@ from .common import (
 log = logging.getLogger("maple.income")
 
 FOOTER = "부가 수익을 제외한 결정석값입니다."
+
 
 def current_period_keys() -> tuple[str, str]:
     """지금 주기의 주차 키와 월 키.
@@ -62,10 +63,8 @@ class Income(commands.Cog):
 
     @app_commands.command(name="수익", description="이번 주기에 번 결정석 수익을 정산합니다.")
     @app_commands.describe(캐릭터="비우면 대표 캐릭터, 대표가 없으면 내 전 캐릭터")
-    @app_commands.autocomplete(캐릭터=character_autocomplete)
-    async def income(
-        self, interaction: discord.Interaction, 캐릭터: str | None = None
-    ) -> None:
+    @app_commands.autocomplete(캐릭터=my_character_autocomplete)
+    async def income(self, interaction: discord.Interaction, 캐릭터: str | None = None) -> None:
         week_key, month_key = current_period_keys()
 
         with open_session(interaction) as session:
@@ -130,7 +129,7 @@ class Income(commands.Cog):
     @app_commands.command(name="클리어", description="이번 주기 보스 클리어를 기록합니다.")
     @app_commands.describe(보스="보스 이름", 난이도="난이도", 캐릭터="비우면 대표 캐릭터")
     @app_commands.autocomplete(
-        보스=boss_autocomplete, 난이도=difficulty_autocomplete, 캐릭터=character_autocomplete
+        보스=boss_autocomplete, 난이도=difficulty_autocomplete, 캐릭터=my_character_autocomplete
     )
     async def clear(
         self,
@@ -192,7 +191,7 @@ class Income(commands.Cog):
     @app_commands.command(name="클리어취소", description="이번 주기 클리어 기록을 지웁니다.")
     @app_commands.describe(보스="보스 이름", 난이도="난이도", 캐릭터="비우면 대표 캐릭터")
     @app_commands.autocomplete(
-        보스=boss_autocomplete, 난이도=difficulty_autocomplete, 캐릭터=character_autocomplete
+        보스=boss_autocomplete, 난이도=difficulty_autocomplete, 캐릭터=my_character_autocomplete
     )
     async def unclear(
         self,

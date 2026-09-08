@@ -27,11 +27,11 @@ from .common import (
     ConfirmView,
     active_schedules,
     boss_autocomplete,
-    character_autocomplete,
     difficulty_autocomplete,
     get_or_create_character,
     get_schedule,
     guild_characters,
+    my_character_autocomplete,
     next_run,
     open_session,
     parse_clock,
@@ -443,7 +443,7 @@ class Party(commands.Cog):
 
     @app_commands.command(name="내일정", description="캐릭터가 들어가 있는 파티 일정을 봅니다.")
     @app_commands.describe(캐릭터="비우면 대표 캐릭터, 대표가 없으면 내 전 캐릭터")
-    @app_commands.autocomplete(캐릭터=character_autocomplete)
+    @app_commands.autocomplete(캐릭터=my_character_autocomplete)
     async def my_schedules(
         self, interaction: discord.Interaction, 캐릭터: str | None = None
     ) -> None:
