@@ -15,6 +15,7 @@ from .db import build_engine, build_session_factory
 log = logging.getLogger("maple")
 
 EXTENSIONS = (
+    "bot.cogs.character",
     "bot.cogs.party",
     "bot.cogs.income",
     "bot.cogs.admin",
@@ -28,6 +29,7 @@ REQUIRED_TABLES = (
     "party_member",
     "clear_record",
     "notification_log",
+    "boss_image",
 )
 
 
@@ -67,9 +69,7 @@ class MapleBossBot(commands.Bot):
     async def on_ready(self) -> None:
         log.info("로그인 완료: %s (id=%s)", self.user, self.user.id)
         await self.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.watching, name="보스 파티 일정"
-            )
+            activity=discord.Activity(type=discord.ActivityType.watching, name="보스 파티 일정")
         )
 
     async def close(self) -> None:

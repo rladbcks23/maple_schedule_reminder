@@ -18,14 +18,16 @@ from discord.ext import commands, tasks
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from .cogs.common import EMBED_COLOR, active_schedules, next_run, schedule_label
+from .cogs.common import EMBED_COLOR, active_schedules, boss_image_url, next_run
 from .db import session_scope
-from .domain.formatting import format_meso
+from .domain.formatting import difficulty_ko, difficulty_tag, format_meso
 from .domain.income import party_income
 from .domain.schedule import (
     REPEAT_MONTHLY,
+    REPEAT_ONCE,
     clamp_day,
     discord_timestamp,
+    format_kst,
     now_kst,
     now_utc,
     occurrence_key,
@@ -41,6 +43,8 @@ KIND_ONTIME = "ontime"
 PRE_ALERT_WINDOW = timedelta(minutes=30)
 # 정시 알림은 예정 시각 ±2분 안에서만. 봇이 꺼져 있던 동안 밀린 회차는 되살리지 않는다.
 ONTIME_TOLERANCE = timedelta(minutes=2)
+# 이만큼 지난 1회성 일정은 알림 없이 목록에서만 치운다.
+STALE_ONCE_GRACE = timedelta(hours=1)
 
 
 def current_occurrence(schedule: PartySchedule, now: datetime) -> datetime | None:
@@ -57,9 +61,7 @@ def current_occurrence(schedule: PartySchedule, now: datetime) -> datetime | Non
         if schedule.weekday is None or local.weekday() != schedule.weekday - 1:
             return None
 
-    return local.replace(
-        hour=schedule.hour, minute=schedule.minute, second=0, microsecond=0
-    )
+    return local.replace(hour=schedule.hour, minute=schedule.minute, second=0, microsecond=0)
 
 
 class Scheduler(commands.Cog):
@@ -79,8 +81,15 @@ class Scheduler(commands.Cog):
             log.exception("알림 대상 조회 실패")
             return
 
-        for channel_id, schedule_id, kind, target, embed, mentions in plans:
-            await self._send(channel_id, schedule_id, kind, target, embed, mentions)
+        for channel_id, schedule_id, kind, target, embed, mentions, retire in plans:
+            sent = await self._send(channel_id, schedule_id, kind, target, embed, mentions)
+            if sent and retire:
+                self._deactivate(schedule_id)
+
+        try:
+            self._expire_stale_once_schedules(now)
+        except Exception:
+            log.exception("지난 1회성 일정 정리 실패")
 
     def _collect_alerts(self, now: datetime):
         """보낼 알림 목록을 만든다. DB 접근은 이 안에서 끝낸다."""
@@ -92,7 +101,9 @@ class Scheduler(commands.Cog):
 
             for config in configs:
                 for schedule in active_schedules(session, config.guild_id):
+                    image_url = boss_image_url(session, config.guild_id, schedule.boss_name)
                     upcoming = next_run(schedule, now)
+
                     if timedelta(0) < upcoming - now <= PRE_ALERT_WINDOW:
                         plans.append(
                             (
@@ -100,24 +111,65 @@ class Scheduler(commands.Cog):
                                 schedule.id,
                                 KIND_PRE30,
                                 occurrence_key(upcoming),
-                                self._build_embed(schedule, upcoming, KIND_PRE30, now),
+                                self._build_embed(schedule, upcoming, KIND_PRE30, now, image_url),
                                 self._mentions(schedule),
+                                False,
                             )
                         )
 
-                    current = current_occurrence(schedule, now)
-                    if current is not None and abs(now - current) <= ONTIME_TOLERANCE:
+                    current = self._ontime_moment(schedule, now, upcoming)
+                    if current is not None:
                         plans.append(
                             (
                                 config.notify_channel_id,
                                 schedule.id,
                                 KIND_ONTIME,
                                 occurrence_key(current),
-                                self._build_embed(schedule, current, KIND_ONTIME, now),
+                                self._build_embed(schedule, current, KIND_ONTIME, now, image_url),
                                 self._mentions(schedule),
+                                # 1회성 파티는 정시 알림을 보내고 나면 없앤다.
+                                not schedule.is_recurring,
                             )
                         )
         return plans
+
+    def _ontime_moment(
+        self, schedule: PartySchedule, now: datetime, upcoming: datetime
+    ) -> datetime | None:
+        """지금이 정시 알림을 보낼 순간이면 그 예정 시각, 아니면 None."""
+        if schedule.repeat_type == REPEAT_ONCE:
+            # 1회성은 예정 시각이 하나뿐이라 그것과만 비교한다.
+            return upcoming if abs(now - upcoming) <= ONTIME_TOLERANCE else None
+
+        current = current_occurrence(schedule, now)
+        if current is not None and abs(now - current) <= ONTIME_TOLERANCE:
+            return current
+        return None
+
+    def _expire_stale_once_schedules(self, now: datetime) -> None:
+        """봇이 꺼져 있는 동안 지나가 버린 1회성 일정을 정리한다.
+
+        되살려 알림을 보내지는 않고, 목록에서만 치운다.
+        """
+        cutoff = now - STALE_ONCE_GRACE
+        with session_scope(self.bot.session_factory) as session:
+            stale = session.scalars(
+                select(PartySchedule).where(
+                    PartySchedule.repeat_type == REPEAT_ONCE,
+                    PartySchedule.is_active.is_(True),
+                    PartySchedule.once_at.is_not(None),
+                )
+            ).all()
+            for schedule in stale:
+                if to_kst(schedule.once_at) < cutoff:
+                    schedule.is_active = False
+                    log.info("지나간 1회성 일정 정리: #%s", schedule.id)
+
+    def _deactivate(self, schedule_id: int) -> None:
+        with session_scope(self.bot.session_factory) as session:
+            schedule = session.get(PartySchedule, schedule_id)
+            if schedule is not None:
+                schedule.is_active = False
 
     def _mentions(self, schedule: PartySchedule) -> str:
         """디스코드 계정이 연결된 파티원만 멘션한다."""
@@ -128,23 +180,58 @@ class Scheduler(commands.Cog):
         }
         return " ".join(f"<@{user_id}>" for user_id in sorted(user_ids))
 
+    def _member_lines(self, schedule: PartySchedule) -> str:
+        """캐릭터명 + 등록할 때 연결한 사람 태그."""
+        if not schedule.members:
+            return "(없음)"
+
+        줄 = []
+        for member in schedule.members:
+            character = member.character
+            꼬리 = f" — <@{character.discord_user_id}>" if character.is_linked else " — (미연결)"
+            줄.append(f"・**{character.name}**{꼬리}")
+        return "\n".join(줄)
+
     def _build_embed(
-        self, schedule: PartySchedule, target: datetime, kind: str, now: datetime
+        self,
+        schedule: PartySchedule,
+        target: datetime,
+        kind: str,
+        now: datetime,
+        image_url: str | None,
     ) -> discord.Embed:
+        """보스 사진 + 이름/난이도 + 시간 + 캐릭터 태그."""
         if kind == KIND_PRE30:
             남은 = int((target - now).total_seconds() // 60)
-            title = f"⏰ {schedule.boss_name} 파티 {남은}분 전"
+            머리 = f"⏰ {남은}분 뒤 보스 파티"
         else:
-            title = f"🚨 {schedule.boss_name} 파티 시작 시각입니다"
+            머리 = "🚨 보스 파티 시작 시각입니다"
 
         embed = discord.Embed(
-            title=title, description=f"**{schedule_label(schedule)}**", color=EMBED_COLOR
+            title=f"{difficulty_tag(schedule.difficulty)} {schedule.boss_name}",
+            description=머리,
+            color=EMBED_COLOR,
         )
-        embed.add_field(name="시각", value=discord_timestamp(target, "f"), inline=False)
+        if image_url:
+            embed.set_thumbnail(url=image_url)
 
-        names = [member.character.display_name for member in schedule.members]
         embed.add_field(
-            name=f"파티원 ({len(names)}명)", value=", ".join(names) or "(없음)", inline=False
+            name="난이도",
+            value=f"{difficulty_ko(schedule.difficulty)} ({difficulty_tag(schedule.difficulty)})",
+            inline=True,
+        )
+        embed.add_field(
+            name="반복", value="고정 파티" if schedule.is_recurring else "1회성", inline=True
+        )
+        embed.add_field(
+            name="시간",
+            value=f"{format_kst(target)}\n{discord_timestamp(target, 'R')}",
+            inline=False,
+        )
+        embed.add_field(
+            name=f"파티원 ({len(schedule.members)}명)",
+            value=self._member_lines(schedule)[:1024],
+            inline=False,
         )
 
         result = party_income(schedule.boss_name, schedule.difficulty, len(schedule.members))
@@ -163,11 +250,12 @@ class Scheduler(commands.Cog):
         target: str,
         embed: discord.Embed,
         mentions: str,
-    ) -> None:
+    ) -> bool:
+        """실제로 보냈으면 True. 이미 보낸 회차면 False."""
         channel = self.bot.get_channel(channel_id)
         if channel is None:
             log.warning("알림 채널 %s 을 찾을 수 없어 건너뜁니다.", channel_id)
-            return
+            return False
 
         # 기록을 먼저 남긴다. 유니크 제약에 걸리면 이미 보낸 회차다.
         try:
@@ -181,7 +269,7 @@ class Scheduler(commands.Cog):
                     )
                 )
         except IntegrityError:
-            return
+            return False
 
         try:
             await channel.send(content=mentions or None, embed=embed)
@@ -189,6 +277,7 @@ class Scheduler(commands.Cog):
             log.warning("채널 %s 에 메시지를 보낼 권한이 없습니다.", channel_id)
         except discord.HTTPException:
             log.exception("알림 발송 실패 (schedule=%s, kind=%s)", schedule_id, kind)
+        return True
 
     @alert_loop.before_loop
     async def before_alert_loop(self) -> None:
