@@ -54,6 +54,9 @@ python -m bot.main
 
 마이그레이션을 안 돌린 채 실행하면 없는 테이블 이름과 함께 `alembic upgrade head` 를 안내하고 종료합니다.
 
+24시간 켜두려면 [deploy/README.md](deploy/README.md) 를 보세요. 오라클 클라우드 무료 VM에
+올리고 systemd로 상시 실행하는 절차입니다.
+
 ## 커맨드
 
 봇 안에서 `/명령어` 를 치면 아래 목록이 그대로 나옵니다.
@@ -231,6 +234,7 @@ bot/
     formatting.py      메소 표기(억/만), 난이도 한글 표기
 tests/                 domain 테스트
 alembic/               마이그레이션
+deploy/                오라클 VM 배포 (systemd 유닛, 갱신 스크립트, 절차)
 ```
 
 ## 설계 결정

@@ -1,0 +1,20 @@
+[Unit]
+Description=Maple Boss Party Discord Bot
+# 부팅 직후 네트워크가 올라오기 전에 시작하면 로그인에 실패한다.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/maple_schedule_reminder
+# 토큰은 .env 에 두고 python-dotenv 가 읽는다. WorkingDirectory 가 맞아야 찾는다.
+ExecStart=/home/ubuntu/maple_schedule_reminder/.venv/bin/python -m bot.main
+# 봇이 죽어도(네트워크 끊김, 디스코드 장애 등) 10초 뒤 다시 띄운다.
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
