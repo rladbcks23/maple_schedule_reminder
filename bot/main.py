@@ -28,7 +28,6 @@ REQUIRED_TABLES = (
     "character",
     "party_schedule",
     "party_member",
-    "clear_record",
     "notification_log",
 )
 

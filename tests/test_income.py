@@ -1,139 +1,60 @@
-from bot.domain.income import (
-    ClearInput,
-    PartyInfo,
-    calculate_income,
-    party_income,
-    resolve_party_size,
-)
+from bot.domain.income import party_income
 
 SUU_HARD_MESO = 51_500_000
 SUU_HARD_SOL = 40
 
 
-def party(boss, difficulty, count, members=()):
-    return PartyInfo(
-        boss_name=boss,
-        difficulty=difficulty,
-        member_count=count,
-        member_character_ids=frozenset(members),
-    )
-
-
-# --- 분배 인원수 결정 ---------------------------------------------------------
-
-
-def test_party_size_uses_schedule_containing_the_character():
-    parties = [
-        party("스우", "hard", 6, members=[10, 11, 12, 13, 14, 15]),
-        party("스우", "hard", 4, members=[1, 2, 3, 4]),
-    ]
-    assert resolve_party_size("스우", "hard", 1, parties) == 4
-
-
-def test_party_size_falls_back_to_first_matching_schedule():
-    parties = [party("스우", "hard", 4, members=[1, 2, 3, 4])]
-    assert resolve_party_size("스우", "hard", 99, parties) == 4
-
-
-def test_party_size_is_one_when_no_schedule_exists():
-    assert resolve_party_size("스우", "hard", 1, []) == 1
-
-
-def test_party_size_matches_on_normalized_names():
-    # '반 레온' -> '반레온'. 공백 차이로 매칭이 깨지면 안 된다.
-    parties = [party("반레온", "HARD", 3, members=[1])]
-    assert resolve_party_size("반 레온", "hard", 1, parties) == 3
-
-
-def test_party_size_ignores_other_bosses_and_difficulties():
-    parties = [party("스우", "normal", 4, members=[1]), party("데미안", "hard", 5, members=[1])]
-    assert resolve_party_size("스우", "hard", 1, parties) == 1
-
-
-def test_season_boss_is_always_solo_share():
-    parties = [party("시즌 보스 메이린", "hard", 6, members=[1, 2, 3, 4, 5, 6])]
-    assert resolve_party_size("시즌 보스 메이린", "hard", 1, parties) == 1
-    assert resolve_party_size("메이린", "hard", 1, parties) == 1
-
-
-# --- 수익 계산 ----------------------------------------------------------------
-
-
-def test_four_member_hard_suu_uses_floor_division():
-    parties = [party("스우", "hard", 4, members=[1, 2, 3, 4])]
-    report = calculate_income([ClearInput("스우", "hard", 1)], parties)
-
-    assert report.total_meso == SUU_HARD_MESO // 4
-    assert report.total_sol_erda == SUU_HARD_SOL // 4
-    assert len(report.lines) == 1
-    assert report.lines[0].render() == "HARD 스우: 1287만 / 4인 분배"
-
-
-def test_solo_clear_keeps_full_reward():
-    report = calculate_income([ClearInput("스우", "hard", 1)], [])
-    assert report.total_meso == SUU_HARD_MESO
-    assert report.total_sol_erda == SUU_HARD_SOL
-    assert report.lines[0].render() == "HARD 스우: 5150만 / 1인 분배"
-
-
-def test_season_boss_income_is_not_divided():
-    parties = [party("시즌 보스 메이린", "hard", 6, members=[1, 2, 3, 4, 5, 6])]
-    report = calculate_income([ClearInput("시즌 보스 메이린", "hard", 1)], parties)
-    assert report.total_meso == 600_000_000
-    assert report.total_sol_erda == 550
-
-
-def test_multiple_clears_are_summed():
-    parties = [party("스우", "hard", 4, members=[1, 2, 3, 4])]
-    report = calculate_income(
-        [ClearInput("스우", "hard", 1), ClearInput("데미안", "hard", 1)], parties
-    )
-    assert report.total_meso == SUU_HARD_MESO // 4 + 48_900_000
-    assert report.total_sol_erda == SUU_HARD_SOL // 4 + 40
-
-
-def test_missing_price_is_excluded_from_total_but_kept_in_lines():
-    report = calculate_income(
-        [ClearInput("스우", "hard", 1), ClearInput("아무개", "normal", 1)], []
-    )
-    assert report.total_meso == SUU_HARD_MESO
-    assert len(report.lines) == 2
-
-    missing = report.missing_lines
-    assert len(missing) == 1
-    assert missing[0].boss_name == "아무개"
-    assert missing[0].render() == "NORMAL 아무개: 시세 정보 없음"
-
-
-def test_korean_difficulty_is_normalized():
-    report = calculate_income([ClearInput("스우", "하드", 1)], [])
-    assert report.total_meso == SUU_HARD_MESO
-
-
-def test_zero_reward_boss_is_not_treated_as_missing():
-    # 발록 easy는 시세가 0으로 '알려진' 값이다. 정보 없음과 구분해야 한다.
-    report = calculate_income([ClearInput("발록", "easy", 1)], [])
-    assert report.total_meso == 0
-    assert report.missing_lines == []
-
-
-# --- 파티 단위 수익 ------------------------------------------------------------
-
-
-def test_party_income_splits_total_by_member_count():
-    result = party_income("스우", "hard", 4)
+def test_solo_keeps_full_reward():
+    result = party_income("스우", "hard", 1)
     assert result is not None
+    assert result.total_meso == SUU_HARD_MESO
+    assert result.share_meso == SUU_HARD_MESO
+    assert result.share_sol_erda == SUU_HARD_SOL
+
+
+def test_party_splits_by_member_count_with_floor_division():
+    result = party_income("스우", "hard", 4)
     assert result.total_meso == SUU_HARD_MESO
     assert result.share_meso == SUU_HARD_MESO // 4
     assert result.total_sol_erda == SUU_HARD_SOL
     assert result.share_sol_erda == SUU_HARD_SOL // 4
 
 
-def test_party_income_treats_season_boss_as_solo():
+def test_korean_difficulty_is_normalized():
+    assert party_income("스우", "하드", 1).total_meso == SUU_HARD_MESO
+
+
+def test_boss_name_spacing_is_ignored():
+    # 이름은 넣은 그대로 담기지만 시세는 같은 값을 찾아야 한다.
+    붙임 = party_income("반레온", "hard", 1)
+    띄움 = party_income("반 레온", "hard", 1)
+    assert 붙임 is not None and 띄움 is not None
+    assert 붙임.total_meso == 띄움.total_meso == 1_070_000
+
+
+def test_season_boss_is_always_solo_share():
+    # 시즌 보스는 6인이 가도 나누지 않는다.
     result = party_income("시즌 보스 메이린", "hard", 6)
-    assert result is not None
+    assert result.member_count == 1
     assert result.share_meso == 600_000_000
+    assert party_income("메이린", "hard", 6).share_meso == 600_000_000
 
 
-def test_party_income_returns_none_without_price():
+def test_zero_reward_boss_is_known_not_missing():
+    # 발록 easy는 시세가 0으로 '알려진' 값이다. 정보 없음과 구분해야 한다.
+    result = party_income("발록", "easy", 1)
+    assert result is not None
+    assert result.total_meso == 0
+
+
+def test_unknown_boss_returns_none():
     assert party_income("아무개", "normal", 4) is None
+
+
+def test_unknown_difficulty_returns_none():
+    # 스우에는 카오스가 없다.
+    assert party_income("스우", "chaos", 1) is None
+
+
+def test_member_count_is_clamped_to_at_least_one():
+    assert party_income("스우", "hard", 0).member_count == 1

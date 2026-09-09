@@ -122,41 +122,6 @@ class PartyMember(Base):
     character: Mapped[Character] = relationship(lazy="selectin")
 
 
-class ClearRecord(Base):
-    """보스 클리어 기록.
-
-    period_key는 주간이면 '2026-W37', 월간이면 '2026-09'. 유니크 제약으로
-    같은 주기에 같은 보스를 두 번 기록하는 걸 막는다.
-    """
-
-    __tablename__ = "clear_record"
-    __table_args__ = (
-        UniqueConstraint(
-            "character_id",
-            "boss_name",
-            "difficulty",
-            "period_key",
-            name="uq_clear_record_period",
-        ),
-        Index("ix_clear_record_guild_period", "guild_id", "period_key"),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    schedule_id: Mapped[int | None] = mapped_column(
-        ForeignKey("party_schedule.id", ondelete="SET NULL"), nullable=True
-    )
-    character_id: Mapped[int] = mapped_column(
-        ForeignKey("character.id", ondelete="CASCADE"), nullable=False
-    )
-    boss_name: Mapped[str] = mapped_column(String(32), nullable=False)
-    difficulty: Mapped[str] = mapped_column(String(16), nullable=False)
-    cleared_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    period_key: Mapped[str] = mapped_column(String(16), nullable=False)
-
-    character: Mapped[Character] = relationship(lazy="selectin")
-
-
 class NotificationLog(Base):
     """알림 중복 발송 방지 기록.
 

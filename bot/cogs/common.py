@@ -25,7 +25,6 @@ from ..domain.boss_data import (
     search_boss_names,
 )
 from ..domain.code import generate_code, normalize_code
-from ..domain.income import PartyInfo
 from ..domain.schedule import format_schedule_time, next_occurrence, now_kst
 from ..models import Character, PartySchedule
 
@@ -257,19 +256,6 @@ class ConfirmView(discord.ui.View):
         self.stop()
 
 
-def party_infos(session: Session, guild_id: int) -> list[PartyInfo]:
-    """수익 계산에 넘길 파티 정보로 변환한다."""
-    return [
-        PartyInfo(
-            boss_name=schedule.boss_name,
-            difficulty=schedule.difficulty,
-            member_count=len(schedule.members),
-            member_character_ids=frozenset(m.character_id for m in schedule.members),
-        )
-        for schedule in active_schedules(session, guild_id)
-    ]
-
-
 def find_character(session: Session, guild_id: int, name: str) -> Character | None:
     """이름으로 캐릭터를 찾는다. 공백 차이는 무시한다."""
     rows = session.scalars(select(Character).where(Character.guild_id == guild_id)).all()
@@ -307,20 +293,12 @@ def characters_of_user(session: Session, guild_id: int, user_id: int) -> list[Ch
 
 
 def resolve_target_characters(
-    session: Session,
-    guild_id: int,
-    user_id: int,
-    name: str | None,
-    *,
-    single: bool = False,
+    session: Session, guild_id: int, user_id: int, name: str | None
 ) -> tuple[list[Character], str | None]:
     """정산·기록 대상 캐릭터를 정한다.
 
     이름을 주면 그 캐릭터 하나, 비우면 호출자에게 연결된 캐릭터를 쓴다.
     반환값의 두 번째 항목은 실패 사유 메시지다.
-
-    single=True면 대상이 하나로 정해질 때만 통과시킨다. 클리어 기록처럼
-    쓰기가 일어나는 커맨드에서 임의의 캐릭터에 찍히는 걸 막기 위해서다.
 
     남의 캐릭터는 지정할 수 없다. 조회는 물론이고 클리어 기록을 남기거나
     지우는 것도 같은 경로를 타기 때문에, 여기서 한 번 막아 전부 차단한다.
@@ -341,10 +319,6 @@ def resolve_target_characters(
     mine = characters_of_user(session, guild_id, user_id)
     if not mine:
         return [], "연결된 캐릭터가 없습니다. `/캐릭터등록` 으로 먼저 등록해주세요."
-
-    if single and len(mine) > 1:
-        후보 = ", ".join(f"`{character.name}`" for character in mine)
-        return [], f"캐릭터가 여러 개입니다. `캐릭터` 옵션으로 골라주세요: {후보}"
 
     return mine, None
 
