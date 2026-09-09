@@ -237,9 +237,7 @@ class Scheduler(commands.Cog):
 
         result = party_income(schedule.boss_name, schedule.difficulty, len(schedule.members))
         if result is not None:
-            embed.add_field(
-                name="예상 1인 분배", value=format_meso(result.share_meso), inline=False
-            )
+            embed.add_field(name="예상 1인당", value=format_meso(result.share_meso), inline=False)
         embed.set_footer(text="부가 수익을 제외한 결정석값입니다.")
         return embed
 

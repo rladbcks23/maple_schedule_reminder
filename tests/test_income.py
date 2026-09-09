@@ -1,7 +1,6 @@
 from bot.domain.income import party_income
 
 SUU_HARD_MESO = 51_500_000
-SUU_HARD_SOL = 40
 
 
 def test_solo_keeps_full_reward():
@@ -9,15 +8,12 @@ def test_solo_keeps_full_reward():
     assert result is not None
     assert result.total_meso == SUU_HARD_MESO
     assert result.share_meso == SUU_HARD_MESO
-    assert result.share_sol_erda == SUU_HARD_SOL
 
 
 def test_party_splits_by_member_count_with_floor_division():
     result = party_income("스우", "hard", 4)
     assert result.total_meso == SUU_HARD_MESO
     assert result.share_meso == SUU_HARD_MESO // 4
-    assert result.total_sol_erda == SUU_HARD_SOL
-    assert result.share_sol_erda == SUU_HARD_SOL // 4
 
 
 def test_korean_difficulty_is_normalized():

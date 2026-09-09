@@ -1,4 +1,4 @@
-"""메소·솔 에르다 기운 표기. 원본 Flutter 앱(maple_daily_log)과 결과가 같아야 한다."""
+"""메소 표기. 원본 Flutter 앱(maple_daily_log)과 결과가 같아야 한다."""
 
 from __future__ import annotations
 
@@ -27,13 +27,6 @@ def format_meso(value: int) -> str:
     if man:
         return f"{man}만"
     return str(value)
-
-
-def format_sol_erda(value: int) -> str:
-    """솔 에르다 기운 표기. 0 이하는 '-'."""
-    if value <= 0:
-        return "-"
-    return f"{value}기운"
 
 
 def difficulty_ko(difficulty: str) -> str:

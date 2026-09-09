@@ -103,7 +103,7 @@ class PartySchedule(Base):
 
 
 class PartyMember(Base):
-    """파티에 참여하는 캐릭터. 이 일정의 멤버 수가 곧 분배 인원수다."""
+    """파티에 참여하는 캐릭터. 이 일정의 멤버 수로 결정석을 나눈다."""
 
     __tablename__ = "party_member"
     __table_args__ = (

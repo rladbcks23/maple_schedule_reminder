@@ -9,7 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ..domain.boss_data import is_monthly_boss
-from ..domain.formatting import format_meso, format_sol_erda
+from ..domain.formatting import format_meso
 from ..domain.income import party_income
 from ..domain.schedule import (
     REPEAT_MONTHLY,
@@ -59,15 +59,12 @@ def summarize_members(schedule: PartySchedule) -> str:
 
 
 def share_text(schedule: PartySchedule) -> str:
-    """일정 한 건의 예상 1인 분배 수익."""
+    """일정 한 건의 예상 1인당 수익."""
     result = party_income(schedule.boss_name, schedule.difficulty, len(schedule.members))
     if result is None:
         return "시세 정보 없음"
 
-    line = f"{format_meso(result.share_meso)} / {result.member_count}인"
-    if result.share_sol_erda > 0:
-        line += f" · {format_sol_erda(result.share_sol_erda)}"
-    return line
+    return f"{format_meso(result.share_meso)} / {result.member_count}인"
 
 
 def schedule_embed(schedule: PartySchedule, title: str) -> discord.Embed:
@@ -89,7 +86,7 @@ def schedule_embed(schedule: PartySchedule, title: str) -> discord.Embed:
         value=summarize_members(schedule),
         inline=False,
     )
-    embed.add_field(name="예상 1인 분배", value=share_text(schedule), inline=False)
+    embed.add_field(name="예상 1인당", value=share_text(schedule), inline=False)
     embed.set_footer(text=f"이 파티의 코드는 {schedule.code} 입니다. 수정·삭제할 때 쓰세요.")
     return embed
 
@@ -348,7 +345,7 @@ class Party(commands.Cog):
                     value=(
                         f"{discord_timestamp(upcoming)}\n"
                         f"파티원 {len(schedule.members)}명: {summarize_members(schedule)}\n"
-                        f"1인 분배: {share_text(schedule)}"
+                        f"1인당: {share_text(schedule)}"
                     ),
                     inline=False,
                 )

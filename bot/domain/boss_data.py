@@ -188,7 +188,7 @@ DIFFICULTY_KO: dict[str, str] = {
 # 월간 리셋을 따르는 보스. 나머지는 전부 주간이다.
 MONTHLY_BOSSES = frozenset({"검은 마법사"})
 
-# 시즌 보스는 파티 일정이 있어도 항상 1인 분배로 본다.
+# 시즌 보스는 인원과 무관하게 나누지 않는다.
 SEASON_BOSS_MARKERS = ("시즌보스", "메이린")
 
 # 보스 사진 URL. 알림 임베드의 기본 썸네일로 쓴다.

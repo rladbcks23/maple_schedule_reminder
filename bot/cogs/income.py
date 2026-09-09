@@ -14,7 +14,7 @@ from discord.ext import commands
 
 from ..domain.boss_data import default_boss_image, is_monthly_boss
 from ..domain.bosslist import parse_boss_list
-from ..domain.formatting import difficulty_tag, format_meso, format_sol_erda
+from ..domain.formatting import difficulty_tag, format_meso
 from ..domain.income import party_income
 from .common import (
     EMBED_COLOR,
@@ -58,7 +58,6 @@ class Income(commands.Cog):
 
         줄 = []
         총메소 = 0
-        총기운 = 0
         시세없음 = []
 
         for entry in entries[:MAX_LINES]:
@@ -70,16 +69,11 @@ class Income(commands.Cog):
                 continue
 
             총메소 += result.share_meso
-            총기운 += result.share_sol_erda
-            꼬리 = f" · {format_sol_erda(result.share_sol_erda)}" if result.share_sol_erda else ""
-            줄.append(
-                f"{머리}: {format_meso(result.share_meso)} / {result.member_count}인 분배{꼬리}"
-            )
+            줄.append(f"{머리}: {format_meso(result.share_meso)} / {result.member_count}인")
 
         embed = discord.Embed(title="💰 결정석 수익", color=EMBED_COLOR)
         embed.add_field(name=f"상세 ({len(줄)}건)", value="\n".join(줄)[:1024], inline=False)
-        embed.add_field(name="합계 메소", value=format_meso(총메소), inline=True)
-        embed.add_field(name="솔 에르다 기운", value=format_sol_erda(총기운), inline=True)
+        embed.add_field(name="합계", value=format_meso(총메소), inline=False)
 
         if 시세없음:
             embed.add_field(
@@ -136,18 +130,11 @@ class Income(commands.Cog):
 
         embed.add_field(name="결정석 (총액)", value=format_meso(result.total_meso), inline=True)
         embed.add_field(
-            name=f"{result.member_count}인 분배", value=format_meso(result.share_meso), inline=True
+            name=f"{result.member_count}인당", value=format_meso(result.share_meso), inline=True
         )
-        if result.total_sol_erda > 0:
-            embed.add_field(
-                name="솔 에르다 기운",
-                value=f"총 {format_sol_erda(result.total_sol_erda)}"
-                f" · 1인 {format_sol_erda(result.share_sol_erda)}",
-                inline=False,
-            )
         if result.member_count != 인원:
             embed.add_field(
-                name="참고", value="시즌 보스는 항상 1인 분배로 계산합니다.", inline=False
+                name="참고", value="시즌 보스는 인원과 무관하게 나누지 않습니다.", inline=False
             )
 
         embed.set_footer(text=FOOTER)
@@ -155,7 +142,7 @@ class Income(commands.Cog):
 
     @app_commands.command(
         name="파티수익",
-        description="파티의 총 결정석값과 1인 분배액을 봅니다. 파티코드는 /파티목록 에서 확인하세요.",
+        description="파티의 총 결정석값과 1인당 금액을 봅니다. 파티코드는 /파티목록 에서 확인하세요.",
     )
     @app_commands.describe(파티코드="확인할 파티의 코드 (예: SU4K)")
     @app_commands.autocomplete(파티코드=schedule_autocomplete)
@@ -182,17 +169,10 @@ class Income(commands.Cog):
         embed = discord.Embed(title=f"💎 {label}", color=EMBED_COLOR)
         embed.add_field(name="총 결정석", value=format_meso(result.total_meso), inline=True)
         embed.add_field(
-            name=f"1인 분배 ({result.member_count}인)",
+            name=f"{result.member_count}인당",
             value=format_meso(result.share_meso),
             inline=True,
         )
-        if result.total_sol_erda > 0:
-            embed.add_field(
-                name="솔 에르다 기운",
-                value=f"총 {format_sol_erda(result.total_sol_erda)}"
-                f" · 1인 {format_sol_erda(result.share_sol_erda)}",
-                inline=False,
-            )
         embed.add_field(
             name=f"파티원 ({len(member_names)}명)",
             value=", ".join(member_names) or "(없음)",

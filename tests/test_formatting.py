@@ -1,6 +1,6 @@
 import pytest
 
-from bot.domain.formatting import difficulty_ko, difficulty_tag, format_meso, format_sol_erda
+from bot.domain.formatting import difficulty_ko, difficulty_tag, format_meso
 
 
 @pytest.mark.parametrize(
@@ -28,12 +28,6 @@ def test_format_meso_drops_change_under_ten_thousand():
 def test_format_meso_keeps_raw_number_under_ten_thousand():
     assert format_meso(1) == "1"
     assert format_meso(354) == "354"
-
-
-def test_format_sol_erda():
-    assert format_sol_erda(0) == "-"
-    assert format_sol_erda(-5) == "-"
-    assert format_sol_erda(250) == "250기운"
 
 
 def test_difficulty_labels():
