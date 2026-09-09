@@ -61,7 +61,10 @@ class Income(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="수익", description="이번 주기 결정석 수익을 정산합니다. 캐릭터를 비우면 내 대표 캐릭터입니다.")
+    @app_commands.command(
+        name="수익",
+        description="이번 주기 결정석 수익을 정산합니다. 캐릭터를 비우면 내 대표 캐릭터입니다.",
+    )
     @app_commands.describe(캐릭터="비우면 대표 캐릭터, 대표가 없으면 내 전 캐릭터")
     @app_commands.autocomplete(캐릭터=my_character_autocomplete)
     async def income(self, interaction: discord.Interaction, 캐릭터: str | None = None) -> None:
@@ -126,7 +129,10 @@ class Income(commands.Cog):
         embed.set_footer(text=FOOTER)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="클리어", description="이번 주기 클리어를 기록합니다. 캐릭터를 비우면 내 대표 캐릭터입니다.")
+    @app_commands.command(
+        name="클리어",
+        description="이번 주기 클리어를 기록합니다. 캐릭터를 비우면 내 대표 캐릭터입니다.",
+    )
     @app_commands.describe(보스="보스 이름", 난이도="난이도", 캐릭터="비우면 대표 캐릭터")
     @app_commands.autocomplete(
         보스=boss_autocomplete, 난이도=difficulty_autocomplete, 캐릭터=my_character_autocomplete
@@ -188,7 +194,10 @@ class Income(commands.Cog):
             f"✅ **{name}** · {difficulty_tag(difficulty)} {boss_name} 클리어를 기록했습니다. (`{key}`)"
         )
 
-    @app_commands.command(name="클리어취소", description="이번 주기 클리어 기록을 지웁니다. 캐릭터를 비우면 내 대표 캐릭터입니다.")
+    @app_commands.command(
+        name="클리어취소",
+        description="이번 주기 클리어 기록을 지웁니다. 캐릭터를 비우면 내 대표 캐릭터입니다.",
+    )
     @app_commands.describe(보스="보스 이름", 난이도="난이도", 캐릭터="비우면 대표 캐릭터")
     @app_commands.autocomplete(
         보스=boss_autocomplete, 난이도=difficulty_autocomplete, 캐릭터=my_character_autocomplete
@@ -240,7 +249,10 @@ class Income(commands.Cog):
             f"🗑️ **{name}** · {difficulty_tag(difficulty)} {boss_name} 기록을 지웠습니다."
         )
 
-    @app_commands.command(name="결정석", description="보스 결정석 시세를 봅니다. 인원을 비우면 1인 기준으로 계산합니다.")
+    @app_commands.command(
+        name="결정석",
+        description="보스 결정석 시세를 봅니다. 인원을 비우면 1인 기준으로 계산합니다.",
+    )
     @app_commands.describe(보스="보스 이름", 난이도="난이도", 인원="나눌 인원 수 (1~6, 기본 1)")
     @app_commands.autocomplete(보스=boss_autocomplete, 난이도=difficulty_autocomplete)
     async def crystal(
@@ -293,16 +305,17 @@ class Income(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(
-        name="파티수익", description="파티의 총 결정석값과 1인 분배액을 봅니다. 일정에는 SU4K 같은 코드를 넣습니다."
+        name="파티수익",
+        description="파티의 총 결정석값과 1인 분배액을 봅니다. 파티코드는 /파티목록 에서 확인하세요.",
     )
-    @app_commands.describe(일정="확인할 파티 (코드 또는 자동완성)")
-    @app_commands.autocomplete(일정=schedule_autocomplete)
-    async def party_income_command(self, interaction: discord.Interaction, 일정: str) -> None:
+    @app_commands.describe(파티코드="확인할 파티의 코드 (예: SU4K)")
+    @app_commands.autocomplete(파티코드=schedule_autocomplete)
+    async def party_income_command(self, interaction: discord.Interaction, 파티코드: str) -> None:
         with open_session(interaction) as session:
-            schedule = resolve_schedule(session, interaction.guild_id, 일정)
+            schedule = resolve_schedule(session, interaction.guild_id, 파티코드)
             if schedule is None:
                 await interaction.response.send_message(
-                    f"❓ `{일정}` 코드의 파티가 없습니다. `/파티목록` 에서 확인해주세요.",
+                    f"❓ `{파티코드}` 코드의 파티가 없습니다. `/파티목록` 에서 확인해주세요.",
                     ephemeral=True,
                 )
                 return

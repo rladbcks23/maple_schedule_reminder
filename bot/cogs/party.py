@@ -29,7 +29,6 @@ from .common import (
     boss_autocomplete,
     difficulty_autocomplete,
     get_or_create_character,
-    guild_characters,
     issue_code,
     my_character_autocomplete,
     next_run,
@@ -46,8 +45,6 @@ from .common import (
 )
 
 log = logging.getLogger("maple.party")
-
-MAX_SELECT_OPTIONS = 25
 
 WEEKDAY_CHOICES = [
     app_commands.Choice(name=f"{name}요일", value=index + 1)
@@ -95,52 +92,6 @@ def schedule_embed(schedule: PartySchedule, title: str) -> discord.Embed:
     embed.add_field(name="예상 1인 분배", value=share_text(schedule), inline=False)
     embed.set_footer(text=f"이 파티의 코드는 {schedule.code} 입니다. 수정·삭제할 때 쓰세요.")
     return embed
-
-
-class MemberSelectView(discord.ui.View):
-    """등록된 캐릭터 중에서 파티원을 고르는 드롭다운."""
-
-    def __init__(self, user_id: int, characters: list) -> None:
-        super().__init__(timeout=180)
-        self.user_id = user_id
-        self.picked: list[int] | None = None
-
-        options = [
-            discord.SelectOption(
-                label=character.name[:100],
-                value=str(character.id),
-                description=("대표 캐릭터" if character.is_main else None),
-                emoji="⭐" if character.is_main else None,
-            )
-            for character in characters[:MAX_SELECT_OPTIONS]
-        ]
-        self.select = discord.ui.Select(
-            placeholder="파티원으로 넣을 캐릭터를 고르세요 (여러 명 선택 가능)",
-            min_values=1,
-            max_values=len(options),
-            options=options,
-        )
-        self.select.callback = self.on_select
-        self.add_item(self.select)
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id == self.user_id:
-            return True
-        await interaction.response.send_message(
-            "⛔ 명령을 실행한 사람만 고를 수 있습니다.", ephemeral=True
-        )
-        return False
-
-    async def on_select(self, interaction: discord.Interaction) -> None:
-        self.picked = [int(value) for value in self.select.values]
-        await interaction.response.defer()
-        self.stop()
-
-    @discord.ui.button(label="취소", style=discord.ButtonStyle.secondary, row=1)
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        self.picked = None
-        await interaction.response.defer()
-        self.stop()
 
 
 class EditScheduleModal(discord.ui.Modal):
@@ -254,7 +205,9 @@ class Party(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="파티등록", description="보스 파티를 등록합니다. 고정을 끄면 한 번만, 파티원을 비우면 목록에서 고릅니다.")
+    @app_commands.command(
+        name="파티등록", description="보스 파티를 등록합니다. 고정을 끄면 이번 한 번만 모입니다."
+    )
     @app_commands.describe(
         보스="보스 이름",
         난이도="이 보스에 있는 난이도만 고를 수 있습니다",
@@ -262,7 +215,7 @@ class Party(commands.Cog):
         고정="매주 반복하면 True, 이번 한 번만 모이면 False (기본 True)",
         요일="고정 주간 파티일 때 지정",
         날짜="고정 월간 보스면 `15`, 고정이 아니면 `2026-09-10`",
-        파티원="캐릭터명을 콤마로 구분. 비우면 등록된 캐릭터 중에서 고릅니다",
+        파티원="캐릭터명을 콤마로 구분 (예: 본캐, 길드원A)",
     )
     @app_commands.autocomplete(보스=boss_autocomplete, 난이도=difficulty_autocomplete)
     @app_commands.choices(요일=WEEKDAY_CHOICES)
@@ -272,10 +225,10 @@ class Party(commands.Cog):
         보스: str,
         난이도: str,
         시각: str,
+        파티원: str,
         고정: bool = True,
         요일: app_commands.Choice[int] | None = None,
         날짜: str | None = None,
-        파티원: str | None = None,
     ) -> None:
         validated = validate_boss_and_difficulty(보스, 난이도)
         if isinstance(validated, str):
@@ -297,20 +250,13 @@ class Party(commands.Cog):
             return
         repeat_type, weekday, month_day, once_at = plan
 
-        # 파티원을 직접 적었으면 그대로, 아니면 등록된 캐릭터 중에서 고르게 한다.
-        if 파티원:
-            names = parse_member_names(파티원)
-            if not names:
-                await interaction.response.send_message(
-                    "❓ 파티원을 한 명 이상 적어주세요.", ephemeral=True
-                )
-                return
-            character_ids = None
-        else:
-            picked = await self._pick_members(interaction)
-            if picked is None:
-                return
-            names, character_ids = None, picked
+        names = parse_member_names(파티원)
+        if not names:
+            await interaction.response.send_message(
+                "❓ 파티원을 한 명 이상 적어주세요. 콤마로 구분합니다. (예: 본캐, 길드원A)",
+                ephemeral=True,
+            )
+            return
 
         with open_session(interaction) as session:
             schedule = PartySchedule(
@@ -330,13 +276,9 @@ class Party(commands.Cog):
             session.add(schedule)
             session.flush()
 
-            if character_ids is None:
-                for name in names:
-                    character = get_or_create_character(session, interaction.guild_id, name)
-                    schedule.members.append(PartyMember(character_id=character.id))
-            else:
-                for character_id in character_ids:
-                    schedule.members.append(PartyMember(character_id=character_id))
+            for name in names:
+                character = get_or_create_character(session, interaction.guild_id, name)
+                schedule.members.append(PartyMember(character_id=character.id))
             session.flush()
 
             embed = schedule_embed(schedule, "✅ 파티 일정을 등록했습니다")
@@ -349,10 +291,7 @@ class Party(commands.Cog):
                 inline=False,
             )
 
-        if interaction.response.is_done():
-            await interaction.edit_original_response(content=None, embed=embed, view=None)
-        else:
-            await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(embed=embed)
 
     def _resolve_when(
         self,
@@ -390,31 +329,6 @@ class Party(commands.Cog):
             return "고정 주간 파티는 `요일` 을 지정해주세요."
         return REPEAT_WEEKLY, 요일.value, None, None
 
-    async def _pick_members(self, interaction: discord.Interaction) -> list[int] | None:
-        """등록된 캐릭터 목록에서 파티원을 고르게 한다. 취소하면 None."""
-        with open_session(interaction) as session:
-            characters = guild_characters(session, interaction.guild_id)
-
-        if not characters:
-            await interaction.response.send_message(
-                "❓ 등록된 캐릭터가 없습니다. `/캐릭터등록` 으로 먼저 만들거나,"
-                " `파티원` 옵션에 이름을 직접 적어주세요.",
-                ephemeral=True,
-            )
-            return None
-
-        view = MemberSelectView(interaction.user.id, characters)
-        안내 = "파티원을 고르세요."
-        if len(characters) > MAX_SELECT_OPTIONS:
-            안내 += f" (캐릭터가 많아 앞의 {MAX_SELECT_OPTIONS}명만 보입니다)"
-        await interaction.response.send_message(안내, view=view, ephemeral=True)
-        await view.wait()
-
-        if not view.picked:
-            await interaction.edit_original_response(content="취소했습니다.", view=None)
-            return None
-        return view.picked
-
     @app_commands.command(name="파티목록", description="등록된 파티 일정을 봅니다.")
     async def listing(self, interaction: discord.Interaction) -> None:
         now = now_kst()
@@ -443,7 +357,10 @@ class Party(commands.Cog):
 
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="내일정", description="캐릭터가 낀 파티를 봅니다. 캐릭터를 비우면 내 대표 캐릭터 기준입니다.")
+    @app_commands.command(
+        name="내일정",
+        description="캐릭터가 낀 파티를 봅니다. 캐릭터를 비우면 내 대표 캐릭터 기준입니다.",
+    )
     @app_commands.describe(캐릭터="비우면 대표 캐릭터, 대표가 없으면 내 전 캐릭터")
     @app_commands.autocomplete(캐릭터=my_character_autocomplete)
     async def my_schedules(
@@ -489,15 +406,18 @@ class Party(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="파티수정", description="파티의 시각·요일·파티원을 고칩니다. 일정에는 SU4K 같은 코드를 넣습니다.")
-    @app_commands.describe(일정="고칠 파티 (코드 또는 자동완성)")
-    @app_commands.autocomplete(일정=schedule_autocomplete)
-    async def edit(self, interaction: discord.Interaction, 일정: str) -> None:
+    @app_commands.command(
+        name="파티수정",
+        description="파티의 시각·요일·파티원을 고칩니다. 파티코드는 /파티목록 에서 확인하세요.",
+    )
+    @app_commands.describe(파티코드="고칠 파티의 코드 (예: SU4K)")
+    @app_commands.autocomplete(파티코드=schedule_autocomplete)
+    async def edit(self, interaction: discord.Interaction, 파티코드: str) -> None:
         with open_session(interaction) as session:
-            schedule = resolve_schedule(session, interaction.guild_id, 일정)
+            schedule = resolve_schedule(session, interaction.guild_id, 파티코드)
             if schedule is None:
                 await interaction.response.send_message(
-                    f"❓ `{일정}` 코드의 파티가 없습니다. `/파티목록` 에서 확인해주세요.",
+                    f"❓ `{파티코드}` 코드의 파티가 없습니다. `/파티목록` 에서 확인해주세요.",
                     ephemeral=True,
                 )
                 return
@@ -505,15 +425,17 @@ class Party(commands.Cog):
 
         await interaction.response.send_modal(modal)
 
-    @app_commands.command(name="파티삭제", description="파티 일정을 삭제합니다. 일정에는 SU4K 같은 코드를 넣습니다.")
-    @app_commands.describe(일정="삭제할 파티 (코드 또는 자동완성)")
-    @app_commands.autocomplete(일정=schedule_autocomplete)
-    async def delete(self, interaction: discord.Interaction, 일정: str) -> None:
+    @app_commands.command(
+        name="파티삭제", description="파티 일정을 삭제합니다. 파티코드는 /파티목록 에서 확인하세요."
+    )
+    @app_commands.describe(파티코드="삭제할 파티의 코드 (예: SU4K)")
+    @app_commands.autocomplete(파티코드=schedule_autocomplete)
+    async def delete(self, interaction: discord.Interaction, 파티코드: str) -> None:
         with open_session(interaction) as session:
-            schedule = resolve_schedule(session, interaction.guild_id, 일정)
+            schedule = resolve_schedule(session, interaction.guild_id, 파티코드)
             if schedule is None:
                 await interaction.response.send_message(
-                    f"❓ `{일정}` 코드의 파티가 없습니다. `/파티목록` 에서 확인해주세요.",
+                    f"❓ `{파티코드}` 코드의 파티가 없습니다. `/파티목록` 에서 확인해주세요.",
                     ephemeral=True,
                 )
                 return

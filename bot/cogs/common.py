@@ -300,17 +300,6 @@ def get_or_create_character(
     return character
 
 
-def guild_characters(session: Session, guild_id: int) -> list[Character]:
-    """서버에 등록된 캐릭터 전부. 대표 캐릭터가 앞에 온다."""
-    return list(
-        session.scalars(
-            select(Character)
-            .where(Character.guild_id == guild_id)
-            .order_by(Character.is_main.desc(), Character.name)
-        ).all()
-    )
-
-
 def characters_of_user(session: Session, guild_id: int, user_id: int) -> list[Character]:
     return list(
         session.scalars(

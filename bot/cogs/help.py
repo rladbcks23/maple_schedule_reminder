@@ -19,7 +19,10 @@ log = logging.getLogger("maple.help")
 # 코그 클래스명 -> (제목, 한 줄 설명). 여기 없는 코그는 '기타'로 묶인다.
 CATEGORIES: dict[str, tuple[str, str]] = {
     "Characters": ("🧙 캐릭터", "캐릭터를 등록해야 파티에 넣고 알림에서 멘션됩니다."),
-    "Party": ("🗓️ 파티 일정", "고정 파티는 매주 반복하고, 고정이 아닌 파티는 알림이 나가면 사라집니다."),
+    "Party": (
+        "🗓️ 파티 일정",
+        "고정 파티는 매주 반복하고, 고정이 아닌 파티는 알림이 나가면 사라집니다.",
+    ),
     "Income": ("💰 수익 · 결정석", "주간 리셋은 목요일 00:00(KST) 기준입니다."),
     "Admin": ("⚙️ 관리", "알림을 받으려면 채널부터 지정해야 합니다."),
     "Help": ("❓ 도움말", ""),
@@ -47,7 +50,10 @@ class Help(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="명령어", description="쓸 수 있는 커맨드를 전부 보여줍니다. 공개를 켜면 채널에 올립니다.")
+    @app_commands.command(
+        name="명령어",
+        description="쓸 수 있는 커맨드를 전부 보여줍니다. 공개를 켜면 채널에 올립니다.",
+    )
     @app_commands.describe(공개="채널에 모두가 보이게 올립니다 (기본: 나만 보기)")
     async def help_command(self, interaction: discord.Interaction, 공개: bool = False) -> None:
         grouped: dict[str, list[app_commands.Command]] = {}

@@ -40,7 +40,10 @@ class Characters(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    @app_commands.command(name="캐릭터등록", description="캐릭터를 계정에 연결합니다. 유저를 비우면 내 캐릭터로 등록합니다.")
+    @app_commands.command(
+        name="캐릭터등록",
+        description="캐릭터를 계정에 연결합니다. 유저를 비우면 내 캐릭터로 등록합니다.",
+    )
     @app_commands.describe(
         이름="캐릭터명",
         유저="이 캐릭터의 주인. 비우면 나로 등록합니다",
@@ -98,7 +101,10 @@ class Characters(commands.Cog):
             f"{머리말}: **{name}**{주인}{꼬리말}", ephemeral=본인
         )
 
-    @app_commands.command(name="캐릭터목록", description="등록된 캐릭터를 봅니다. 유저를 비우면 서버 전체를 보여줍니다.")
+    @app_commands.command(
+        name="캐릭터목록",
+        description="등록된 캐릭터를 봅니다. 유저를 비우면 서버 전체를 보여줍니다.",
+    )
     @app_commands.describe(유저="비우면 서버 전체 캐릭터")
     async def listing(
         self, interaction: discord.Interaction, 유저: discord.Member | None = None
@@ -206,7 +212,10 @@ class Characters(commands.Cog):
             f"✏️ **{이름}** 수정 완료 — {', '.join(변경)}", ephemeral=True
         )
 
-    @app_commands.command(name="캐릭터삭제", description="캐릭터를 지웁니다. 참여 중인 파티와 클리어 기록도 함께 사라집니다.")
+    @app_commands.command(
+        name="캐릭터삭제",
+        description="캐릭터를 지웁니다. 참여 중인 파티와 클리어 기록도 함께 사라집니다.",
+    )
     @app_commands.describe(캐릭터="지울 캐릭터")
     @app_commands.autocomplete(캐릭터=character_autocomplete)
     async def delete(self, interaction: discord.Interaction, 캐릭터: str) -> None:
