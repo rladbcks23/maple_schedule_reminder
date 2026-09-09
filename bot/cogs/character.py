@@ -172,7 +172,7 @@ class Characters(commands.Cog):
 
     @app_commands.command(
         name="캐릭터삭제",
-        description="캐릭터를 지웁니다. 참여 중인 파티와 클리어 기록도 함께 사라집니다.",
+        description="캐릭터를 지웁니다. 참여 중인 파티에서도 함께 빠집니다.",
     )
     @app_commands.describe(캐릭터="지울 캐릭터")
     @app_commands.autocomplete(캐릭터=character_autocomplete)
@@ -195,11 +195,7 @@ class Characters(commands.Cog):
             파티수 = len(schedules_of_character(session, interaction.guild_id, character_id))
 
         view = ConfirmView(interaction.user.id)
-        경고 = (
-            f"\n참여 중인 파티 {파티수}개에서도 빠지고, 클리어 기록도 함께 지워집니다."
-            if 파티수
-            else ""
-        )
+        경고 = f"\n참여 중인 파티 {파티수}개에서도 빠집니다." if 파티수 else ""
         await interaction.response.send_message(
             f"🗑️ **{이름}** 캐릭터를 지울까요?{경고}", view=view, ephemeral=True
         )
