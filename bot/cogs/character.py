@@ -17,7 +17,6 @@ from .common import (
     EMBED_COLOR,
     ConfirmView,
     character_autocomplete,
-    characters_of_user,
     find_character,
     get_or_create_character,
     open_session,
@@ -47,14 +46,12 @@ class Characters(commands.Cog):
     @app_commands.describe(
         이름="캐릭터명",
         유저="이 캐릭터의 주인. 비우면 나로 등록합니다",
-        대표="그 사람의 정산·기록 기본 대상으로 삼을지",
     )
     async def create(
         self,
         interaction: discord.Interaction,
         이름: str,
         유저: discord.Member | None = None,
-        대표: bool = False,
     ) -> None:
         name = 이름.strip()
         if not name:
@@ -84,22 +81,15 @@ class Characters(commands.Cog):
                 return
 
             was_unlinked = existing is not None and existing.discord_user_id is None
-            character = get_or_create_character(session, interaction.guild_id, name, owner.id)
-            if 대표:
-                for other in characters_of_user(session, interaction.guild_id, owner.id):
-                    other.is_main = other.id == character.id
-                character.is_main = True
+            get_or_create_character(session, interaction.guild_id, name, owner.id)
             session.flush()
 
         머리말 = (
             "🔗 미연결 캐릭터를 계정에 연결했습니다" if was_unlinked else "✅ 캐릭터를 등록했습니다"
         )
         주인 = "" if 본인 else f" → {owner.mention}"
-        꼬리말 = " (대표 캐릭터)" if 대표 else ""
         # 남을 등록했으면 당사자가 알 수 있게 채널에 공개한다.
-        await interaction.response.send_message(
-            f"{머리말}: **{name}**{주인}{꼬리말}", ephemeral=본인
-        )
+        await interaction.response.send_message(f"{머리말}: **{name}**{주인}", ephemeral=본인)
 
     @app_commands.command(
         name="캐릭터목록",
@@ -114,9 +104,7 @@ class Characters(commands.Cog):
             if 유저 is not None:
                 statement = statement.where(Character.discord_user_id == 유저.id)
             rows = session.scalars(
-                statement.order_by(
-                    Character.discord_user_id.is_(None), Character.is_main.desc(), Character.name
-                )
+                statement.order_by(Character.discord_user_id.is_(None), Character.name)
             ).all()
 
             if not rows:
@@ -129,36 +117,26 @@ class Characters(commands.Cog):
 
             줄 = []
             for row in rows:
-                표식 = "⭐" if row.is_main else "・"
                 주인 = f"<@{row.discord_user_id}>" if row.is_linked else "미연결"
                 일정수 = len(schedules_of_character(session, interaction.guild_id, row.id))
-                줄.append(f"{표식} **{row.name}** — {주인} · 파티 {일정수}개")
+                줄.append(f"・**{row.name}** — {주인} · 파티 {일정수}개")
 
         embed = discord.Embed(
             title="🧙 캐릭터 목록" + (f" · {유저.display_name}" if 유저 else ""),
             description="\n".join(줄)[:4000],
             color=EMBED_COLOR,
         )
-        embed.set_footer(text="⭐ 는 대표 캐릭터입니다.")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="캐릭터수정", description="캐릭터 이름이나 대표 여부를 고칩니다.")
-    @app_commands.describe(
-        캐릭터="고칠 캐릭터", 새이름="바꿀 이름 (비우면 유지)", 대표="대표 캐릭터로 지정"
-    )
+    @app_commands.command(name="캐릭터수정", description="캐릭터 이름을 바꿉니다.")
+    @app_commands.describe(캐릭터="이름을 바꿀 캐릭터", 새이름="새 캐릭터명")
     @app_commands.autocomplete(캐릭터=character_autocomplete)
     async def update(
         self,
         interaction: discord.Interaction,
         캐릭터: str,
-        새이름: str | None = None,
-        대표: bool | None = None,
+        새이름: str,
     ) -> None:
-        if 새이름 is None and 대표 is None:
-            await interaction.response.send_message(
-                "❓ `새이름` 이나 `대표` 중 하나는 지정해주세요.", ephemeral=True
-            )
-            return
 
         with open_session(interaction) as session:
             character = find_character(session, interaction.guild_id, 캐릭터)
@@ -173,44 +151,24 @@ class Characters(commands.Cog):
                 )
                 return
 
-            변경 = []
-            if 새이름:
-                new_name = 새이름.strip()
-                if not new_name or len(new_name) > 32:
-                    await interaction.response.send_message(
-                        "❓ 이름은 1~32자로 적어주세요.", ephemeral=True
-                    )
-                    return
-                겹침 = find_character(session, interaction.guild_id, new_name)
-                if 겹침 is not None and 겹침.id != character.id:
-                    await interaction.response.send_message(
-                        f"⛔ `{new_name}` 은 이미 등록된 캐릭터명입니다.", ephemeral=True
-                    )
-                    return
-                변경.append(f"이름 `{character.name}` → `{new_name}`")
-                character.name = new_name
-
-            if 대표 is not None:
-                if 대표 and character.discord_user_id is None:
-                    await interaction.response.send_message(
-                        "❓ 미연결 캐릭터는 대표로 지정할 수 없습니다. 먼저 `/캐릭터등록` 으로 연결해주세요.",
-                        ephemeral=True,
-                    )
-                    return
-                if 대표:
-                    for other in characters_of_user(
-                        session, interaction.guild_id, character.discord_user_id
-                    ):
-                        other.is_main = other.id == character.id
-                character.is_main = 대표
-                변경.append("대표 캐릭터로 지정" if 대표 else "대표 해제")
+            new_name = 새이름.strip()
+            if not new_name or len(new_name) > 32:
+                await interaction.response.send_message(
+                    "❓ 이름은 1~32자로 적어주세요.", ephemeral=True
+                )
+                return
+            겹침 = find_character(session, interaction.guild_id, new_name)
+            if 겹침 is not None and 겹침.id != character.id:
+                await interaction.response.send_message(
+                    f"⛔ `{new_name}` 은 이미 등록된 캐릭터명입니다.", ephemeral=True
+                )
+                return
+            변경 = f"`{character.name}` → `{new_name}`"
+            character.name = new_name
 
             session.flush()
-            이름 = character.name
 
-        await interaction.response.send_message(
-            f"✏️ **{이름}** 수정 완료 — {', '.join(변경)}", ephemeral=True
-        )
+        await interaction.response.send_message(f"✏️ 이름을 바꿨습니다: {변경}", ephemeral=True)
 
     @app_commands.command(
         name="캐릭터삭제",

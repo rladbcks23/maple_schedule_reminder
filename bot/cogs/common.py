@@ -101,7 +101,7 @@ async def character_autocomplete(
         rows = session.scalars(
             select(Character)
             .where(Character.guild_id == interaction.guild_id)
-            .order_by(Character.is_main.desc(), Character.name)
+            .order_by(Character.name)
         ).all()
         return [
             app_commands.Choice(name=row.display_name[:100], value=row.name)
@@ -122,9 +122,7 @@ async def my_character_autocomplete(
     with open_session(interaction) as session:
         rows = characters_of_user(session, interaction.guild_id, interaction.user.id)
         return [
-            app_commands.Choice(
-                name=(f"⭐ {row.name}" if row.is_main else row.name)[:100], value=row.name
-            )
+            app_commands.Choice(name=row.name[:100], value=row.name)
             for row in rows
             if not needle or needle in normalize(row.name)
         ][:MAX_CHOICES]
@@ -292,9 +290,7 @@ def get_or_create_character(
             existing.discord_user_id = discord_user_id
         return existing
 
-    character = Character(
-        guild_id=guild_id, name=name, discord_user_id=discord_user_id, is_main=False
-    )
+    character = Character(guild_id=guild_id, name=name, discord_user_id=discord_user_id)
     session.add(character)
     session.flush()
     return character
@@ -305,19 +301,26 @@ def characters_of_user(session: Session, guild_id: int, user_id: int) -> list[Ch
         session.scalars(
             select(Character)
             .where(Character.guild_id == guild_id, Character.discord_user_id == user_id)
-            .order_by(Character.is_main.desc(), Character.id)
+            .order_by(Character.id)
         ).all()
     )
 
 
 def resolve_target_characters(
-    session: Session, guild_id: int, user_id: int, name: str | None
+    session: Session,
+    guild_id: int,
+    user_id: int,
+    name: str | None,
+    *,
+    single: bool = False,
 ) -> tuple[list[Character], str | None]:
     """정산·기록 대상 캐릭터를 정한다.
 
-    이름을 주면 그 캐릭터 하나, 없으면 호출자의 대표 캐릭터,
-    대표가 없으면 호출자에게 연결된 전 캐릭터를 쓴다.
+    이름을 주면 그 캐릭터 하나, 비우면 호출자에게 연결된 캐릭터를 쓴다.
     반환값의 두 번째 항목은 실패 사유 메시지다.
+
+    single=True면 대상이 하나로 정해질 때만 통과시킨다. 클리어 기록처럼
+    쓰기가 일어나는 커맨드에서 임의의 캐릭터에 찍히는 걸 막기 위해서다.
 
     남의 캐릭터는 지정할 수 없다. 조회는 물론이고 클리어 기록을 남기거나
     지우는 것도 같은 경로를 타기 때문에, 여기서 한 번 막아 전부 차단한다.
@@ -339,8 +342,11 @@ def resolve_target_characters(
     if not mine:
         return [], "연결된 캐릭터가 없습니다. `/캐릭터등록` 으로 먼저 등록해주세요."
 
-    mains = [character for character in mine if character.is_main]
-    return (mains or mine), None
+    if single and len(mine) > 1:
+        후보 = ", ".join(f"`{character.name}`" for character in mine)
+        return [], f"캐릭터가 여러 개입니다. `캐릭터` 옵션으로 골라주세요: {후보}"
+
+    return mine, None
 
 
 # --- 입력 파싱 -----------------------------------------------------------------

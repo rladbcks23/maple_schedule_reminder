@@ -63,9 +63,9 @@ class Income(commands.Cog):
 
     @app_commands.command(
         name="수익",
-        description="이번 주기 결정석 수익을 정산합니다. 캐릭터를 비우면 내 대표 캐릭터입니다.",
+        description="이번 주기 결정석 수익을 정산합니다. 캐릭터를 비우면 내 캐릭터 전부입니다.",
     )
-    @app_commands.describe(캐릭터="비우면 대표 캐릭터, 대표가 없으면 내 전 캐릭터")
+    @app_commands.describe(캐릭터="비우면 내 캐릭터를 모두 합산합니다")
     @app_commands.autocomplete(캐릭터=my_character_autocomplete)
     async def income(self, interaction: discord.Interaction, 캐릭터: str | None = None) -> None:
         week_key, month_key = current_period_keys()
@@ -131,9 +131,11 @@ class Income(commands.Cog):
 
     @app_commands.command(
         name="클리어",
-        description="이번 주기 클리어를 기록합니다. 캐릭터를 비우면 내 대표 캐릭터입니다.",
+        description="이번 주기 클리어를 기록합니다. 캐릭터가 여러 개면 골라야 합니다.",
     )
-    @app_commands.describe(보스="보스 이름", 난이도="난이도", 캐릭터="비우면 대표 캐릭터")
+    @app_commands.describe(
+        보스="보스 이름", 난이도="난이도", 캐릭터="캐릭터가 하나뿐이면 비워도 됩니다"
+    )
     @app_commands.autocomplete(
         보스=boss_autocomplete, 난이도=difficulty_autocomplete, 캐릭터=my_character_autocomplete
     )
@@ -153,7 +155,7 @@ class Income(commands.Cog):
 
         with open_session(interaction) as session:
             targets, error = resolve_target_characters(
-                session, interaction.guild_id, interaction.user.id, 캐릭터
+                session, interaction.guild_id, interaction.user.id, 캐릭터, single=True
             )
             if error:
                 await interaction.response.send_message(f"❓ {error}", ephemeral=True)
@@ -196,9 +198,11 @@ class Income(commands.Cog):
 
     @app_commands.command(
         name="클리어취소",
-        description="이번 주기 클리어 기록을 지웁니다. 캐릭터를 비우면 내 대표 캐릭터입니다.",
+        description="이번 주기 클리어 기록을 지웁니다. 캐릭터가 여러 개면 골라야 합니다.",
     )
-    @app_commands.describe(보스="보스 이름", 난이도="난이도", 캐릭터="비우면 대표 캐릭터")
+    @app_commands.describe(
+        보스="보스 이름", 난이도="난이도", 캐릭터="캐릭터가 하나뿐이면 비워도 됩니다"
+    )
     @app_commands.autocomplete(
         보스=boss_autocomplete, 난이도=difficulty_autocomplete, 캐릭터=my_character_autocomplete
     )
@@ -218,7 +222,7 @@ class Income(commands.Cog):
 
         with open_session(interaction) as session:
             targets, error = resolve_target_characters(
-                session, interaction.guild_id, interaction.user.id, 캐릭터
+                session, interaction.guild_id, interaction.user.id, 캐릭터, single=True
             )
             if error:
                 await interaction.response.send_message(f"❓ {error}", ephemeral=True)

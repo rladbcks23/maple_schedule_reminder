@@ -359,9 +359,9 @@ class Party(commands.Cog):
 
     @app_commands.command(
         name="내일정",
-        description="캐릭터가 낀 파티를 봅니다. 캐릭터를 비우면 내 대표 캐릭터 기준입니다.",
+        description="캐릭터가 낀 파티를 봅니다. 캐릭터를 비우면 내 캐릭터 전부를 봅니다.",
     )
-    @app_commands.describe(캐릭터="비우면 대표 캐릭터, 대표가 없으면 내 전 캐릭터")
+    @app_commands.describe(캐릭터="비우면 내 캐릭터를 모두 봅니다")
     @app_commands.autocomplete(캐릭터=my_character_autocomplete)
     async def my_schedules(
         self, interaction: discord.Interaction, 캐릭터: str | None = None

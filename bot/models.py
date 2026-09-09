@@ -51,7 +51,6 @@ class Character(Base):
     guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
     discord_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     name: Mapped[str] = mapped_column(String(32), nullable=False)
-    is_main: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     @property
     def is_linked(self) -> bool:
