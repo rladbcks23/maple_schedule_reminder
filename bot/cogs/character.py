@@ -41,7 +41,7 @@ class Characters(commands.Cog):
 
     @app_commands.command(
         name="캐릭터등록",
-        description="캐릭터를 계정에 연결합니다. 유저를 비우면 내 캐릭터로 등록합니다.",
+        description="캐릭터를 등록합니다. 유저를 비우면 내 캐릭터로 등록됩니다.",
     )
     @app_commands.describe(
         이름="캐릭터명",
