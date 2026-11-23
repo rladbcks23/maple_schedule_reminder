@@ -1,6 +1,6 @@
 [project]
 name = "maple-boss-bot"
-version = "0.1.0"
+version = "0.2.0"
 description = "메이플스토리 보스 파티 일정과 결정석 수익 정산을 돕는 디스코드 봇"
 readme = "README.md"
 requires-python = ">=3.11"
