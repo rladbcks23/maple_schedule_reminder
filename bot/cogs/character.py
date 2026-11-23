@@ -41,17 +41,13 @@ class Characters(commands.Cog):
 
     @app_commands.command(
         name="캐릭터등록",
-        description="캐릭터를 등록합니다. 유저를 비우면 내 캐릭터로 등록됩니다.",
+        description="내 캐릭터를 등록합니다.",
     )
-    @app_commands.describe(
-        이름="캐릭터명",
-        유저="이 캐릭터의 주인. 비우면 나로 등록합니다",
-    )
+    @app_commands.describe(이름="캐릭터명")
     async def create(
         self,
         interaction: discord.Interaction,
         이름: str,
-        유저: discord.Member | None = None,
     ) -> None:
         name = 이름.strip()
         if not name:
@@ -63,13 +59,9 @@ class Characters(commands.Cog):
             )
             return
 
-        owner = 유저 or interaction.user
-        본인 = owner.id == interaction.user.id
-        if owner.bot:
-            await interaction.response.send_message(
-                "❓ 봇 계정에는 캐릭터를 연결할 수 없습니다.", ephemeral=True
-            )
-            return
+        # 남의 계정에는 연결하지 않는다. 캐릭터와 디스코드 계정을 묶는 건 본인만 할 수 있고,
+        # 남이 적어둔 미연결 캐릭터도 당사자가 직접 이 커맨드를 쳐야 자기 것이 된다.
+        owner = interaction.user
 
         with open_session(interaction) as session:
             existing = find_character(session, interaction.guild_id, name)
@@ -87,9 +79,7 @@ class Characters(commands.Cog):
         머리말 = (
             "🔗 미연결 캐릭터를 계정에 연결했습니다" if was_unlinked else "✅ 캐릭터를 등록했습니다"
         )
-        주인 = "" if 본인 else f" → {owner.mention}"
-        # 남을 등록했으면 당사자가 알 수 있게 채널에 공개한다.
-        await interaction.response.send_message(f"{머리말}: **{name}**{주인}", ephemeral=본인)
+        await interaction.response.send_message(f"{머리말}: **{name}**", ephemeral=True)
 
     @app_commands.command(
         name="캐릭터목록",
